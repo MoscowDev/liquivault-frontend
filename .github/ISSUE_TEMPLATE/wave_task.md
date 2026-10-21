@@ -1,24 +1,20 @@
+## Wave Task Template
+
 ---
-name: Drips Wave Task / Feature Request
-about: Scoped task for Stellar / Drips Wave contributors
-title: "[WAVE] "
-labels: ["drips-wave", "help wanted"]
-assignees: ''
+### Description
+
+Provide a concise description of the task you are proposing. Include any background information that helps reviewers understand the context.
+
 ---
+### Acceptance Criteria
 
-## Context & Objective
+- [ ] Clearly defined outcome(s) (e.g., new endpoint, bug fix, UI change)
+- [ ] Unit / integration tests added and passing
+- [ ] Documentation updated if needed
+- [ ] No linting or CI failures
 
-Describe the UI component, Stellar Freighter integration, or analytics enhancement needed in `liquivault-frontend`.
+---
+### Additional Notes
 
-## Technical Requirements
-
-- **Target Route / Component**: `app/dashboard` | `app/merchant` | `app/investor` | `context/WalletContext.tsx`
-- **Details**:
-  1. 
-  2. 
-
-## Acceptance Criteria
-
-- [ ] Responsive institutional dark/slate styling using Tailwind CSS and `shadcn/ui`
-- [ ] Unit/component test coverage added in `__tests__/frontend.test.tsx`
-- [ ] `npm test` passes with zero errors
+- Add links to relevant design docs or issue numbers.
+- Mention any required dependencies or external services.

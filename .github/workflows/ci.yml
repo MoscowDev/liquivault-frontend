@@ -1,26 +1,23 @@
-name: Frontend CI
-
+name: CI
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 jobs:
-  test-and-lint:
-    name: Vitest & TypeScript Verification
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
-          node-version: 20
-
+          node-version: '20'
       - name: Install dependencies
-        run: npm install --ignore-scripts
-
-      - name: Run Vitest unit & component tests
+        run: npm ci
+      - name: Lint
+        run: npm run lint || echo "No lint script defined"
+      - name: Run tests
         run: npm test
+      - name: Build
+        run: npm run build
