@@ -42,6 +42,11 @@ export interface UIPoolMetrics {
   currentApyBps: number;
   activeEscrowsCount: number;
   defaultRateBps: number;
+  /** Junior (first-loss) tranche capital, included in 	otalLiquidityUsdc. */
+  juniorLiquidityUsdc: number;
+  juniorSharePriceUsdc: number;
+  /** Share of LP yield paid to junior while it holds capital. */
+  juniorYieldBps: number;
 }
 
 export interface DiscountQuote {
@@ -255,4 +260,68 @@ export const INITIAL_POOL_METRICS: UIPoolMetrics = {
   currentApyBps: 984, // 9.84% APY
   activeEscrowsCount: 18,
   defaultRateBps: 0,
+  juniorLiquidityUsdc: 310000,
+  juniorSharePriceUsdc: 1.0,
+  juniorYieldBps: 3000, // 30% of LP yield
 };
+
+/** Junior capital must stay >= this share of deployed capital (mirrors the Soroban contract). */
+export const JUNIOR_MIN_COVERAGE_BPS = 1000;
+
+/**
+ * Splits LP yield between tranches like `repay_liquidity`: with no junior capital senior gets all of it.
+ */
+export function splitTrancheYield(
+  lpYieldUsdc: number,
+  juniorLiquidityUsdc: number,
+  juniorYieldBps: number
+): { juniorYieldUsdc: number; seniorYieldUsdc: number } {
+  const juniorYieldUsdc =
+    juniorLiquidityUsdc > 0
+      ? Number(((lpYieldUsdc * juniorYieldBps) / 10000).toFixed(2))
+      : 0;
+  return {
+    juniorYieldUsdc,
+    seniorYieldUsdc: Number((lpYieldUsdc - juniorYieldUsdc).toFixed(2)),
+  };
+}
+
+/** Splits a default loss like `write_off_default`: junior absorbs first. */
+export function splitTrancheLoss(
+  lossUsdc: number,
+  juniorLiquidityUsdc: number
+): { juniorLossUsdc: number; seniorLossUsdc: number } {
+  const juniorLossUsdc = Math.min(lossUsdc, juniorLiquidityUsdc);
+  return {
+    juniorLossUsdc,
+    seniorLossUsdc: Number((lossUsdc - juniorLossUsdc).toFixed(2)),
+  };
+}
+
+/**
+ * Checks a junior withdrawal against the coverage rule and idle liquidity.
+ * `deployedUsdc` is capital currently lent out on invoices.
+ */
+export function checkJuniorWithdrawal(
+  withdrawUsdc: number,
+  juniorLiquidityUsdc: number,
+  deployedUsdc: number,
+  idleLiquidityUsdc: number
+): { allowed: boolean; reason?: string; remainingJuniorUsdc: number } {
+  const remainingJuniorUsdc = Number((juniorLiquidityUsdc - withdrawUsdc).toFixed(2));
+  if (withdrawUsdc > juniorLiquidityUsdc) {
+    return { allowed: false, reason: "Exceeds junior tranche balance", remainingJuniorUsdc };
+  }
+  if (withdrawUsdc > idleLiquidityUsdc) {
+    return { allowed: false, reason: "Insufficient idle pool liquidity", remainingJuniorUsdc };
+  }
+  const required = (deployedUsdc * JUNIOR_MIN_COVERAGE_BPS) / 10000;
+  if (remainingJuniorUsdc < required) {
+    return {
+      allowed: false,
+      reason: `Junior capital must stay above 10% of deployed capital (${required.toLocaleString()} USDC)`,
+      remainingJuniorUsdc,
+    };
+  }
+  return { allowed: true, remainingJuniorUsdc };
+}

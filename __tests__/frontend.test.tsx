@@ -11,6 +11,9 @@ import {
   calculateFactoringQuote,
   INITIAL_INVOICES,
   INITIAL_POOL_METRICS,
+  checkJuniorWithdrawal,
+  splitTrancheLoss,
+  splitTrancheYield,
 } from "@/lib/sdk";
 import { WalletProvider } from "@/context/WalletContext";
 import DashboardPage from "@/app/dashboard/page";
@@ -114,5 +117,50 @@ describe("LiquiVault Institutional Views Rendering", () => {
       screen.getByText(/Institutional USDC Liquidity Vault/i)
     ).toBeDefined();
     expect(screen.getByText(/125,000 lvUSDC/i)).toBeDefined();
+  });
+});
+
+describe("Junior first-loss tranche", () => {
+  it("splits LP yield to junior only while it holds capital", () => {
+    expect(splitTrancheYield(1800, 20000, 3000)).toEqual({
+      juniorYieldUsdc: 540,
+      seniorYieldUsdc: 1260,
+    });
+    expect(splitTrancheYield(900, 0, 3000)).toEqual({
+      juniorYieldUsdc: 0,
+      seniorYieldUsdc: 900,
+    });
+  });
+
+  it("applies losses to junior before senior", () => {
+    expect(splitTrancheLoss(15000, 20000)).toEqual({
+      juniorLossUsdc: 15000,
+      seniorLossUsdc: 0,
+    });
+    expect(splitTrancheLoss(25000, 20000)).toEqual({
+      juniorLossUsdc: 20000,
+      seniorLossUsdc: 5000,
+    });
+  });
+
+  it("blocks junior withdrawals that break the 10% coverage rule", () => {
+    // Deployed 50k -> junior must keep >= 5k.
+    expect(checkJuniorWithdrawal(10000, 20000, 50000, 50000).allowed).toBe(true);
+    const all = checkJuniorWithdrawal(20000, 20000, 50000, 50000);
+    expect(all.allowed).toBe(false);
+    expect(all.reason).toMatch(/10%/);
+    expect(checkJuniorWithdrawal(30000, 20000, 0, 50000).allowed).toBe(false);
+    expect(checkJuniorWithdrawal(5000, 20000, 0, 1000).allowed).toBe(false);
+  });
+
+  it("renders the junior tranche card on the investor page", () => {
+    render(
+      <WalletProvider>
+        <InvestorPage />
+      </WalletProvider>
+    );
+    expect(screen.getByTestId("junior-tranche-card")).toBeDefined();
+    expect(screen.getByText(/Junior First-Loss Tranche/i)).toBeDefined();
+    expect(screen.getByTestId("junior-withdraw-status")).toBeDefined();
   });
 });

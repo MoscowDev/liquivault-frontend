@@ -11,6 +11,7 @@ import {
   UIPoolMetrics,
   UIProtocolTransaction,
   calculateFactoringQuote,
+  checkJuniorWithdrawal,
 } from "@/lib/sdk";
 
 export interface MintInvoiceInput {
@@ -31,6 +32,8 @@ export interface WalletContextType {
   sep10Jwt: string | null;
   usdcBalance: number;
   lpSharesBalance: number;
+  juniorSharesBalance: number;
+  juniorDepositedUsdc: number;
   depositedUsdc: number;
   earnedYieldUsdc: number;
   invoices: UIInvoice[];
@@ -47,6 +50,8 @@ export interface WalletContextType {
   settleInvoice: (invoiceId: number) => Promise<void>;
   depositLiquidity: (amountUsdc: number) => Promise<void>;
   withdrawLiquidity: (sharesAmount: number) => Promise<void>;
+  depositJunior: (amountUsdc: number) => Promise<void>;
+  withdrawJunior: (sharesAmount: number) => Promise<void>;
   clearNotification: () => void;
 }
 
@@ -67,6 +72,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [lpSharesBalance, setLpSharesBalance] = useState<number>(125000.0);
   const [depositedUsdc, setDepositedUsdc] = useState<number>(125000.0);
   const [earnedYieldUsdc, setEarnedYieldUsdc] = useState<number>(5625.0);
+  const [juniorSharesBalance, setJuniorSharesBalance] = useState<number>(0);
+  const [juniorDepositedUsdc, setJuniorDepositedUsdc] = useState<number>(0);
 
   const [invoices, setInvoices] = useState<UIInvoice[]>(INITIAL_INVOICES);
   const [transactions, setTransactions] =
@@ -400,6 +407,97 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [poolMetrics.sharePriceUsdc, publicKey, signWithFreighter]
   );
 
+  const depositJunior = useCallback(
+    async (amountUsdc: number) => {
+      if (amountUsdc <= 0) return;
+      const mintedShares = Number(
+        (amountUsdc / poolMetrics.juniorSharePriceUsdc).toFixed(2)
+      );
+
+      const txHash = await signWithFreighter(
+        `Deposited ${amountUsdc.toLocaleString()} USDC into the junior first-loss tranche`
+      );
+
+      setUsdcBalance((prev) => Math.max(0, prev - amountUsdc));
+      setJuniorDepositedUsdc((prev) => prev + amountUsdc);
+      setJuniorSharesBalance((prev) => Number((prev + mintedShares).toFixed(2)));
+      setPoolMetrics((prev) => ({
+        ...prev,
+        totalLiquidityUsdc: prev.totalLiquidityUsdc + amountUsdc,
+        availableLiquidityUsdc: prev.availableLiquidityUsdc + amountUsdc,
+        juniorLiquidityUsdc: prev.juniorLiquidityUsdc + amountUsdc,
+      }));
+
+      setTransactions((prev) => [
+        {
+          id: `tx-${Date.now()}`,
+          type: "LP_DEPOSIT",
+          actor: publicKey
+            ? `${publicKey.slice(0, 6)}...${publicKey.slice(-6)}`
+            : "GB7LQV...M94X2K",
+          amountUsdc,
+          timestamp: "Just now",
+          txHash,
+          status: "FINALIZED",
+        },
+        ...prev,
+      ]);
+    },
+    [poolMetrics.juniorSharePriceUsdc, publicKey, signWithFreighter]
+  );
+
+  const withdrawJunior = useCallback(
+    async (sharesAmount: number) => {
+      if (sharesAmount <= 0) return;
+      if (sharesAmount > juniorSharesBalance) {
+        setLastNotification("Cannot redeem more junior shares than you hold.");
+        return;
+      }
+      const redeemedUsdc = Number(
+        (sharesAmount * poolMetrics.juniorSharePriceUsdc).toFixed(2)
+      );
+      const check = checkJuniorWithdrawal(
+        redeemedUsdc,
+        poolMetrics.juniorLiquidityUsdc,
+        poolMetrics.utilizedLiquidityUsdc,
+        poolMetrics.availableLiquidityUsdc
+      );
+      if (!check.allowed) {
+        setLastNotification(`Junior withdrawal blocked: ${check.reason}`);
+        return;
+      }
+
+      const txHash = await signWithFreighter(
+        `Redeemed ${sharesAmount.toLocaleString()} junior shares for ${redeemedUsdc.toLocaleString()} USDC`
+      );
+
+      setJuniorSharesBalance((prev) => Math.max(0, Number((prev - sharesAmount).toFixed(2))));
+      setJuniorDepositedUsdc((prev) => Math.max(0, Number((prev - redeemedUsdc).toFixed(2))));
+      setUsdcBalance((prev) => Number((prev + redeemedUsdc).toFixed(2)));
+      setPoolMetrics((prev) => ({
+        ...prev,
+        totalLiquidityUsdc: Math.max(0, prev.totalLiquidityUsdc - redeemedUsdc),
+        availableLiquidityUsdc: Math.max(0, prev.availableLiquidityUsdc - redeemedUsdc),
+        juniorLiquidityUsdc: Math.max(0, prev.juniorLiquidityUsdc - redeemedUsdc),
+      }));
+
+      setTransactions((prev) => [
+        {
+          id: `tx-${Date.now()}`,
+          type: "LP_WITHDRAW",
+          actor: publicKey
+            ? `${publicKey.slice(0, 6)}...${publicKey.slice(-6)}`
+            : "GB7LQV...M94X2K",
+          amountUsdc: redeemedUsdc,
+          timestamp: "Just now",
+          txHash,
+          status: "FINALIZED",
+        },
+        ...prev,
+      ]);
+    },
+    [juniorSharesBalance, poolMetrics, publicKey, signWithFreighter]
+  );
   return (
     <WalletContext.Provider
       value={{
@@ -410,6 +508,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         sep10Jwt,
         usdcBalance,
         lpSharesBalance,
+        juniorSharesBalance,
+        juniorDepositedUsdc,
         depositedUsdc,
         earnedYieldUsdc,
         invoices,
@@ -426,6 +526,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         settleInvoice,
         depositLiquidity,
         withdrawLiquidity,
+        depositJunior,
+        withdrawJunior,
         clearNotification,
       }}
     >

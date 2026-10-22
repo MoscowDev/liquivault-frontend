@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import JuniorTrancheCard from "@/components/investor/JuniorTrancheCard";
 
 export default function InvestorPage() {
   const {
@@ -377,6 +378,9 @@ export default function InvestorPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Risk tranches: junior first-loss capital */}
+      <JuniorTrancheCard />
     </div>
   );
 }
