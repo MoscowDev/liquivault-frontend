@@ -12,7 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@liquivault/sdk": "file:../liquivault-sdk",
+    "@liquivault/sdk": "github:MoscowDev/liquivault-sdk",
     "@stellar/freighter-api": "^2.0.0",
     "@stellar/stellar-sdk": "^12.1.0",
     "class-variance-authority": "^0.7.0",

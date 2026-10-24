@@ -92,14 +92,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") {
         try {
           const freighter = await import("@stellar/freighter-api");
-          const connectedObj = await freighter.isConnected();
-          if (connectedObj && connectedObj.isConnected) {
-            const accessObj = await freighter.requestAccess();
-            if (accessObj && accessObj.address) {
-              setPublicKey(accessObj.address);
+          const connectedRes: unknown = await freighter.isConnected();
+          const isConnectedResult =
+            typeof connectedRes === "object" && connectedRes !== null
+              ? Boolean((connectedRes as { isConnected?: boolean }).isConnected)
+              : Boolean(connectedRes);
+
+          if (isConnectedResult) {
+            const accessRes: unknown = await freighter.requestAccess();
+            const address =
+              typeof accessRes === "object" && accessRes !== null
+                ? (accessRes as { address?: string }).address
+                : typeof accessRes === "string"
+                ? accessRes
+                : undefined;
+
+            if (address) {
+              setPublicKey(address);
               setIsConnected(true);
               setLastNotification(
-                `Connected Freighter Wallet (${accessObj.address.slice(0, 6)}...${accessObj.address.slice(-4)}) on Stellar Testnet`
+                `Connected Freighter Wallet (${address.slice(0, 6)}...${address.slice(-4)}) on Stellar Testnet`
               );
               return;
             }

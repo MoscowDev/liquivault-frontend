@@ -1,33 +1,39 @@
 # LiquiVault Frontend (`liquivault-frontend`)
 
-Institutional B2B Trade Receivables Factoring, Algorithmic Discount Pricing, and Liquidity Pool Dashboard built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, **shadcn/ui**, **Freighter Wallet API**, and **`@liquivault/sdk`** on **Stellar Soroban**.
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../LICENSE)
+[![Stellar Protocol](https://img.shields.io/badge/Stellar_Protocol-21%20%7C%2022-brightgreen.svg)](https://stellar.org)
+[![Next.js](https://img.shields.io/badge/Next.js-14_App_Router-black.svg)](https://nextjs.org)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8.svg)](https://tailwindcss.com)
+[![Test Suite](https://img.shields.io/badge/Tests-12%2F12%20Passed-success.svg)](../docs/EVIDENCE.md)
+
+B2B invoice factoring, risk-tiered discount pricing, and Liquidity Pool Dashboard built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, **shadcn/ui**, **Freighter Wallet API**, and **`@liquivault/sdk`** on **Stellar Soroban**.
 
 ---
 
-## Key Features & Views
+## 1. Key Features & Views
 
-1. **Protocol Analytics (`/dashboard`)**
-   - Real-time Total Value Locked (TVL), Cumulative Factored Volume, Current Pool APY, lvUSDC Share Price Index, and Active Escrows telemetry.
-   - Capital Utilization ratio and Underwriting Risk Tier distribution (`Tier A` 6.00% APR, `Tier B` 10.00% APR, `Tier C` 15.00% APR).
-   - Live Soroban settlement and factoring ledger with transaction hashes.
+### 1.1 Protocol Analytics Dashboard (`/dashboard`)
+- **Real-Time Telemetry**: Total Value Locked (TVL), Cumulative Factored Volume, Current Pool APY, `lvUSDC` Share Price Index, and Active Escrows counter.
+- **Risk Distribution**: Dynamic breakdown across Underwriting Risk Tiers (`Tier A` 6.00% APR, `Tier B` 10.00% APR, `Tier C` 15.00% APR).
+- **Soroban Transaction Ledger**: Live transaction ledger tracking tokenization mints, verifications, factoring advances, repayments, and default write-offs with Stellar ledger IDs and explorer links.
 
-2. **Merchant Receivable Tokenization & Factoring (`/merchant`)**
-   - **Tokenize Trade Receivable (`InvoiceAsset`)**: Mint verified on-chain RWA invoice claims with debtor Stellar account, USDC face value, net-30 to net-90 maturity terms, underwriting risk tier, and client-side SHA-256 document commitment generator.
-   - **One-Click Instant USDC Factoring (`LiquidityPool`)**: Interactive factoring quote modal displaying time-weighted discount basis points, 90% LP yield allocation, 10% protocol reserve fee, and net instant USDC payout signed via Freighter.
-   - **Debtor Atomic Settlement (`EscrowRouting`)**: Simulate or execute full invoice settlement at maturity, automatically routing principal and accrued yield back to the liquidity pool.
+### 1.2 Merchant Factoring Portal (`/merchant`)
+- **Tokenize Receivable**: Mint verified on-chain RWA invoice claims with debtor Stellar account, USDC face value, net-30 to net-90 maturity dates, and client-side RFC-6902 SHA-256 document commitment generator.
+- **Instant Factoring Quote Preview**: Live calculation displaying time-weighted discount basis points, 90% LP yield allocation, 10% protocol reserve fee, and net instant USDC payout.
+- **Debtor Settlement**: Single-click maturity settlement simulation routing principal and yield back to the liquidity pool.
 
-3. **Institutional USDC Liquidity Vault (`/investor`)**
-   - Deposit SEP-41 Circle USDC to mint yield-bearing `lvUSDC` LP shares.
-   - Burn `lvUSDC` shares to redeem underlying USDC principal plus auto-compounded factoring yield.
-   - Real-time vault utilization and first-loss reserve protection telemetry.
+### 1.3 Institutional Liquidity Vault (`/investor`)
+- **Senior Vault Tranche (`lvUSDC`)**: Deposit USDC to mint pro-rata shares. Redeem underlying USDC principal plus auto-compounded yield.
+- **Junior First-Loss Tranche (`jUSDC`)**: Higher APY tranche absorbing first-loss defaults. Features real-time **10% Deployed Capital Coverage** health telemetry and withdrawal lock preview.
 
-4. **Freighter Wallet & SEP-10 Institutional KYB (`WalletContext`)**
-   - Seamless connection to `@stellar/freighter-api` on Stellar Soroban Testnet (`Test SDF Network ; September 2015`) with an interactive institutional signer fallback so every workflow can be tested immediately in any browser.
-   - One-click **SEP-10 Web Authentication** session verification.
+### 1.4 Freighter Wallet & SEP-10 Authentication (`WalletContext`)
+- Full integration with `@stellar/freighter-api` on Stellar Soroban Testnet (`Test SDF Network ; September 2015`).
+- Includes an interactive Institutional Signer fallback to test and demonstrate workflows seamlessly in any browser environment without external extensions.
+- SEP-10 Web Authentication challenge signing.
 
 ---
 
-## Project Structure
+## 2. Project Structure
 
 ```text
 liquivault-frontend/
@@ -37,7 +43,7 @@ liquivault-frontend/
 │   ├── page.tsx              # Institutional landing overview & live KPI strip
 │   ├── dashboard/page.tsx    # Protocol analytics, risk tiers & Soroban tx ledger
 │   ├── merchant/page.tsx     # RWA invoice minting, SHA-256 hashing & instant factoring
-│   └── investor/page.tsx     # USDC deposit, lvUSDC share minting & redemption
+│   └── investor/page.tsx     # Senior & Junior vault deposit, share minting & redemption
 ├── components/
 │   ├── layout/Navbar.tsx     # Navigation, Stellar Testnet badge, SEP-10 & Freighter button
 │   └── ui/                   # Reusable shadcn/ui primitives (Button, Card, Dialog, Tabs, Table, etc.)
@@ -52,27 +58,33 @@ liquivault-frontend/
 
 ---
 
-## Quick Start
+## 3. Quick Start & Setup
 
-### 1. Configure Environment Variables
-
+### Step 1: Configure Environment Variables
 Copy `.env.example` to `.env.local`:
-
 ```bash
 cp .env.example .env.local
 ```
 
-### 2. Install Dependencies & Run Development Server
-
+### Step 2: Install Dependencies & Run Development Server
 ```bash
 npm install
 npm run dev
 ```
-
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 3. Run Component & Pricing Unit Tests
-
+### Step 3: Run Test Suite
 ```bash
+# Run all Vitest + React Testing Library tests (12 tests)
 npm test
 ```
+
+---
+
+## 4. Documentation Links
+
+- [Protocol Architecture Specification](../docs/architecture.md)
+- [Verified Test Evidence & Proofs](../docs/EVIDENCE.md)
+- [Security Policy & Threat Model](../docs/SECURITY.md)
+- [Testnet Deployment Runbook](../docs/deployment.md)
+- [Contract Storage & State TTL Policy](../docs/storage.md)
