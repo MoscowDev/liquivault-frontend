@@ -68,7 +68,7 @@ export function Navbar() {
                     "flex items-center space-x-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors",
                     active
                       ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-100"
+                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-100",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -80,7 +80,10 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center space-x-3">
-          <Badge variant="info" className="hidden lg:inline-flex items-center gap-1.5">
+          <Badge
+            variant="info"
+            className="hidden lg:inline-flex items-center gap-1.5"
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
             Stellar Soroban Testnet
           </Badge>
@@ -125,7 +128,9 @@ export function Navbar() {
         </div>
       </div>
 
-      <div role="status" className="px-4 py-2 text-xs text-slate-400">Testnet token ? {dataStatus}</div>
+      <div role="status" className="px-4 py-2 text-xs text-slate-400">
+        Testnet token ? {dataStatus}
+      </div>
       {/* Mobile Navigation Bar */}
       <div className="flex md:hidden border-t border-slate-800/80 bg-slate-950 px-4 py-2 justify-around">
         {navItems.map((item) => {
@@ -139,7 +144,7 @@ export function Navbar() {
                 "flex items-center space-x-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium",
                 active
                   ? "bg-emerald-500/15 text-emerald-300"
-                  : "text-slate-400 hover:text-slate-200"
+                  : "text-slate-400 hover:text-slate-200",
               )}
             >
               <Icon className="h-3.5 w-3.5" />

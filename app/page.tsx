@@ -128,8 +128,12 @@ export default function HomePage() {
             <div className="rounded-lg bg-slate-950/90 p-3 font-mono text-xs text-slate-400 border border-slate-800">
               Contract: {STELLAR_CONFIG.contracts.invoiceAsset.slice(0, 18)}...
             </div>
-            <Link href="/merchant" className="inline-flex items-center text-sm font-medium text-emerald-400 hover:text-emerald-300">
-              Tokenize & Factor Invoices <ArrowRight className="ml-1.5 h-4 w-4" />
+            <Link
+              href="/merchant"
+              className="inline-flex items-center text-sm font-medium text-emerald-400 hover:text-emerald-300"
+            >
+              Tokenize & Factor Invoices{" "}
+              <ArrowRight className="ml-1.5 h-4 w-4" />
             </Link>
           </CardContent>
         </Card>
@@ -149,8 +153,12 @@ export default function HomePage() {
             <div className="rounded-lg bg-slate-950/90 p-3 font-mono text-xs text-slate-400 border border-slate-800">
               Contract: {STELLAR_CONFIG.contracts.liquidityPool.slice(0, 18)}...
             </div>
-            <Link href="/investor" className="inline-flex items-center text-sm font-medium text-sky-400 hover:text-sky-300">
-              Deposit USDC & Earn Yield <ArrowRight className="ml-1.5 h-4 w-4" />
+            <Link
+              href="/investor"
+              className="inline-flex items-center text-sm font-medium text-sky-400 hover:text-sky-300"
+            >
+              Deposit USDC & Earn Yield{" "}
+              <ArrowRight className="ml-1.5 h-4 w-4" />
             </Link>
           </CardContent>
         </Card>
@@ -170,7 +178,10 @@ export default function HomePage() {
             <div className="rounded-lg bg-slate-950/90 p-3 font-mono text-xs text-slate-400 border border-slate-800">
               Contract: {STELLAR_CONFIG.contracts.escrowRouting.slice(0, 18)}...
             </div>
-            <Link href="/dashboard" className="inline-flex items-center text-sm font-medium text-amber-400 hover:text-amber-300">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center text-sm font-medium text-amber-400 hover:text-amber-300"
+            >
               Inspect Active Escrows <ArrowRight className="ml-1.5 h-4 w-4" />
             </Link>
           </CardContent>

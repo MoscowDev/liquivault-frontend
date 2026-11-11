@@ -14,14 +14,14 @@ export const STROOP_DECIMALS = 10_000_000;
  */
 export function formatUSDC(
   amount: number | bigint | string,
-  fromStroops: boolean = false
+  fromStroops: boolean = false,
 ): string {
   const numericValue =
     typeof amount === "bigint"
       ? Number(amount)
       : typeof amount === "string"
-      ? parseFloat(amount)
-      : amount;
+        ? parseFloat(amount)
+        : amount;
 
   if (Number.isNaN(numericValue)) return "$0.00";
 
@@ -79,7 +79,9 @@ export function getDaysToMaturity(maturityTimestampSec: number): number {
 /**
  * Generates a deterministic-looking SHA-256 hex digest from invoice metadata fields.
  */
-export async function generateInvoiceMetadataHash(payload: string): Promise<string> {
+export async function generateInvoiceMetadataHash(
+  payload: string,
+): Promise<string> {
   if (typeof window !== "undefined" && window.crypto?.subtle) {
     const encoder = new TextEncoder();
     const data = encoder.encode(payload);

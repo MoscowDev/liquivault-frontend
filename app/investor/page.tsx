@@ -49,7 +49,7 @@ export default function InvestorPage() {
 
   const parsedWithdraw = parseFloat(withdrawShares) || 0;
   const previewRedeemedUsdc = Number(
-    (parsedWithdraw * poolMetrics.sharePriceUsdc).toFixed(2)
+    (parsedWithdraw * poolMetrics.sharePriceUsdc).toFixed(2),
   );
 
   const utilizationPct =
@@ -59,7 +59,7 @@ export default function InvestorPage() {
             (poolMetrics.utilizedLiquidityUsdc /
               poolMetrics.totalLiquidityUsdc) *
             100
-          ).toFixed(1)
+          ).toFixed(1),
         )
       : 0;
 
@@ -76,12 +76,15 @@ export default function InvestorPage() {
   };
 
   const totalPositionValueUsdc = Number(
-    (lpSharesBalance * poolMetrics.sharePriceUsdc).toFixed(2)
+    (lpSharesBalance * poolMetrics.sharePriceUsdc).toFixed(2),
   );
 
   return (
     <div className="space-y-8">
-      <p className="text-sm text-amber-300">Testnet token. Each deposit locks that tranche?s withdrawals for 24 hours. Junior yield is capped by its capital share.</p>
+      <p className="text-sm text-amber-300">
+        Testnet token. Each deposit locks that tranche?s withdrawals for 24
+        hours. Junior yield is capped by its capital share.
+      </p>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
@@ -226,7 +229,9 @@ export default function InvestorPage() {
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Current Share Index</span>
+                      <span className="text-slate-400">
+                        Current Share Index
+                      </span>
                       <span className="font-mono text-slate-200">
                         1 lvUSDC = {poolMetrics.sharePriceUsdc.toFixed(4)} USDC
                       </span>
@@ -318,7 +323,7 @@ export default function InvestorPage() {
                     {isSigning
                       ? "Signing Soroban Withdrawal..."
                       : `Burn ${parsedWithdraw.toLocaleString()} lvUSDC for ${formatUSDC(
-                          previewRedeemedUsdc
+                          previewRedeemedUsdc,
                         )}`}
                   </Button>
                 </form>

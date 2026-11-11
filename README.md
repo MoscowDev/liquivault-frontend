@@ -1,13 +1,18 @@
 # LiquiVault frontend
 
-Next.js interface to the LiquiVault Stellar testnet contracts through `@liquivault/sdk`.
+[![CI](https://github.com/MoscowDev/liquivault-frontend/actions/workflows/ci.yml/badge.svg)](https://github.com/MoscowDev/liquivault-frontend/actions/workflows/ci.yml)
+[MIT license](LICENSE)
 
-## Run locally
+Next.js/React interface for the LiquiVault Stellar testnet prototype. Merchant factoring, senior/junior positions and contract snapshots use `@liquivault/sdk`. **Pre-audit, testnet only.** The configured asset is an issuer-controlled test token, not Circle-issued USDC.
 
-Use Node.js 22.12 or newer. Keep `liquivault-sdk` alongside this repository (the frontend uses `file:../liquivault-sdk`).
+## Run from clean checkouts
+
+Node.js 22.13+ and npm are required. The SDK must be cloned alongside this repository:
 
 ```sh
-cd ../liquivault-sdk
+git clone https://github.com/MoscowDev/liquivault-sdk.git
+git clone https://github.com/MoscowDev/liquivault-frontend.git
+cd liquivault-sdk
 npm ci
 cd ../liquivault-frontend
 npm ci
@@ -15,22 +20,37 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Configure the RPC endpoint, network passphrase and contract addresses in `.env.local`. The checked-in addresses refer to the historical testnet deployment, which uses a **test token, not Circle-issued USDC**. Deploy the repaired contracts and update these addresses before validating the new contract protections. Existing immutable deployments cannot receive the new upgrade function retroactively.
+PowerShell: use `Copy-Item .env.example .env.local`. Open http://localhost:3000. The `file:../liquivault-sdk` dependency is intentional: no published npm package is assumed. CI checks out/builds that sibling before frontend installation.
 
-The wallet starts disconnected. Install Freighter, select the configured network and connect a funded account. Transactions are built with an account sequence, prepared through Soroban RPC, signed by Freighter and polled until confirmation. Wallet rejection and RPC failures are displayed without generating balances or hashes. A timeout includes the submitted hash; inspect it before retrying.
+Configure RPC URL, network passphrase and four contract IDs in `.env.local`. Defaults must match the [current deployment record](https://github.com/MoscowDev/liquivault-contracts/blob/main/deployments/testnet.json). Do not use older immutable deployments to claim the current contract protections. Install/unlock Freighter, select the configured testnet and use a funded account with test tokens for writes.
 
-Pool snapshots refresh every 30 seconds. Invoice lists are the connected merchant's on-chain invoices. Activity contains confirmed transactions from this browser session only. APY and historical default-rate metrics are unavailable; no historical indexer is included. A treasury balance is displayed as its current token balance, not a historical fee total.
+## What the application does
 
-Minting creates an `Issued` invoice. An authorized verifier/admin must verify it independently before factoring. Factoring previews come from `preview_factoring_quote`, including the origination fee and current contract configuration. Quotes may change before execution. A connected payer can repay a factored invoice. No SEP-10/KYB, SEP-24 anchor integration or automatic verification is implemented or claimed.
+- Starts disconnected; missing Freighter and network/account mismatches produce errors.
+- Reads real balances/positions and the connected merchant's invoices.
+- Uses escrow's quote preview, including origination fees and current configuration.
+- Mints invoices as `Issued`; independent configured verifier/admin approval is required before factoring.
+- Prepares and signs transactions through the SDK, waits for confirmation and refreshes reads. Rejections do not generate fake balances or hashes.
+- Refreshes snapshots every 30 seconds. Activity shows confirmed writes in this session only.
 
-Repaired pool contracts lock withdrawals of a tranche for 24 hours after its most recent deposit. Junior yield is capped by its proportion of total senior plus junior assets. Junior withdrawals also preserve first-loss coverage while loans are deployed. The time lock prevents immediate settlement round trips but does not remove all timing incentives.
+APY/default-rate history and a historical indexer are unavailable. Treasury token balance is not a historical fee total. No SEP-10/KYB, SEP-24, automatic invoice verification or fabricated demonstration mode is implemented. Registry ownership does not establish legal assignment.
 
-## Checks
+Each deposit resets a 24-hour lock on the provider's entire position in that tranche. Idle liquidity and junior first-loss coverage can delay redemption further. Junior yield is capital-capped; neither tranche guarantees principal or return.
+
+## Verify
 
 ```sh
 npm run lint
+npm run typecheck
 npm test
 npm run build
+npm audit
 ```
 
-CI checks out the sibling SDK, builds it, and runs frontend checks. Merge the SDK changes before the dependent frontend changes. Lint failures fail CI.
+Lint failures fail CI. New SDK API changes must be merged before dependent frontend changes. Unit tests do not replace interactive wallet testing; follow the [deployment runbook](https://github.com/MoscowDev/LiquiVault/blob/main/docs/deployment.md) for signed network evidence.
+
+`typecheck` generates Next route types before invoking TypeScript, so it also works before the first production build in a fresh checkout. The Vitest config is native ESM and does not depend on CommonJS `__dirname` behavior.
+
+The [manual wallet walkthrough](https://github.com/MoscowDev/LiquiVault/blob/main/docs/wallet-demo.md) explains test-token trustlines, obtaining tokens from an issuer you control and independent invoice verification. The lint toolchain uses ESLint 9 to respect the current Next plugin peer ranges; the lockfile and scoped minimatch override keep its dependency graph audited. Do not replace these with forced peer installs.
+
+[Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Architecture](https://github.com/MoscowDev/LiquiVault/blob/main/docs/architecture.md)

@@ -8,7 +8,9 @@ interface TabsContextValue {
   onValueChange: (value: string) => void;
 }
 
-const TabsContext = React.createContext<TabsContextValue | undefined>(undefined);
+const TabsContext = React.createContext<TabsContextValue | undefined>(
+  undefined,
+);
 
 export interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
   defaultValue: string;
@@ -24,7 +26,8 @@ export function Tabs({
   children,
   ...props
 }: TabsProps) {
-  const [uncontrolledValue, setUncontrolledValue] = React.useState(defaultValue);
+  const [uncontrolledValue, setUncontrolledValue] =
+    React.useState(defaultValue);
   const currentValue = controlledValue ?? uncontrolledValue;
 
   const handleValueChange = React.useCallback(
@@ -32,11 +35,13 @@ export function Tabs({
       setUncontrolledValue(next);
       onValueChange?.(next);
     },
-    [onValueChange]
+    [onValueChange],
   );
 
   return (
-    <TabsContext.Provider value={{ value: currentValue, onValueChange: handleValueChange }}>
+    <TabsContext.Provider
+      value={{ value: currentValue, onValueChange: handleValueChange }}
+    >
       <div className={cn("w-full", className)} {...props}>
         {children}
       </div>
@@ -52,23 +57,18 @@ export function TabsList({
     <div
       className={cn(
         "inline-flex h-11 items-center justify-center rounded-lg bg-slate-950/90 p-1 text-slate-400 border border-slate-800",
-        className
+        className,
       )}
       {...props}
     />
   );
 }
 
-export interface TabsTriggerProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   value: string;
 }
 
-export function TabsTrigger({
-  className,
-  value,
-  ...props
-}: TabsTriggerProps) {
+export function TabsTrigger({ className, value, ...props }: TabsTriggerProps) {
   const ctx = React.useContext(TabsContext);
   const isActive = ctx?.value === value;
   return (
@@ -82,7 +82,7 @@ export function TabsTrigger({
         isActive
           ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
           : "text-slate-400 hover:text-slate-200",
-        className
+        className,
       )}
       {...props}
     />
@@ -102,7 +102,10 @@ export function TabsContent({
   const ctx = React.useContext(TabsContext);
   if (ctx?.value !== value) return null;
   return (
-    <div className={cn("mt-4 focus-visible:outline-none", className)} {...props}>
+    <div
+      className={cn("mt-4 focus-visible:outline-none", className)}
+      {...props}
+    >
       {children}
     </div>
   );

@@ -2,14 +2,17 @@
   "name": "liquivault-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "LiquiVault Institutional B2B Trade Receivables Factoring & Liquidity Dashboard on Stellar Soroban",
+  "description": "Testnet invoice-factoring and tranche interface for LiquiVault",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "next typegen && tsc --noEmit",
+    "format": "prettier --write app components context lib __tests__ *.ts *.mts *.mjs",
+    "format:check": "prettier --check app components context lib __tests__ *.ts *.mts *.mjs"
   },
   "dependencies": {
     "@liquivault/sdk": "file:../liquivault-sdk",
@@ -17,29 +20,36 @@
     "@stellar/stellar-sdk": "^17.4.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.400.0",
-    "next": "14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "lucide-react": "1.72.0",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tailwind-merge": "^2.3.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
-    "@types/node": "^20.14.0",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
     "autoprefixer": "^10.4.19",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.5",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.6",
     "jsdom": "^24.1.0",
-    "postcss": "^8.4.38",
+    "postcss": "8.5.32",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.2",
-    "vitest": "^1.6.0"
+    "vitest": "5.1.0",
+    "vite": "8.3.8",
+    "prettier": "3.9.10"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.13.0"
+  },
+  "overrides": {
+    "follow-redirects": "1.16.3",
+    "postcss": "8.5.32",
+    "@typescript-eslint/typescript-estree": { "minimatch": "^11.0.1" }
   }
 }

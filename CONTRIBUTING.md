@@ -1,47 +1,26 @@
-## LiquiVault Frontend Contribution Guide
+# Contributing to the frontend
 
-We love contributions to the LiquiVault web UI! Follow these steps to get started.
+Use Node.js 22.13+ and npm. Clone the SDK and frontend as siblings; cloning the frontend alone is not sufficient for its local SDK dependency.
 
-### 1️⃣ Fork & Clone
-```bash
-# Fork the repo on GitHub first
-git clone https://github.com/<your‑username>/liquivault-frontend.git
-cd liquivault-frontend
+```sh
+git clone https://github.com/MoscowDev/liquivault-sdk.git
+git clone https://github.com/MoscowDev/liquivault-frontend.git
+cd liquivault-sdk
+npm ci
+cd ../liquivault-frontend
+npm ci
+cp .env.example .env.local
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run dev
 ```
 
-### 2️⃣ Create a Branch
-```bash
-git checkout -b my‑frontend‑feature
-```
+On PowerShell use `Copy-Item .env.example .env.local`. Do not commit `.env.local`, wallet keys or seeds. Only testnet identities/test assets should be used for demonstrations.
 
-### 3️⃣ Install Dependencies
-```bash
-npm ci   # installs exact versions from package-lock.json
-```
+Create a branch from `main` and link an unfinished issue. Explain the user-visible problem, changed behavior and verification. Use `npm run format` / `npm run format:check` for formatting. Ensure responsive layouts and accessible controls, clear loading/empty/error states and no fabricated balances, tokens, authentication or transaction hashes.
 
-### 4️⃣ Development Workflow
-- **Run the dev server**: `npm run dev`
-- **Run tests**: `npm test`
-- **Run lint**: `npm run lint`
-- **Build for production**: `npm run build`
+Tests may stub the SDK for deterministic UI behavior, but must not treat a fake successful transport as proof of network execution. Current contract quotes and confirmed ledger results must drive financial actions. Explain any cross-repo dependency and merge SDK changes first. CI installs the sibling SDK explicitly and fails on lint/type/test/build errors.
 
-### 5️⃣ Commit & Push
-```bash
-git add .
-git commit -m "feat: short description"
-git push origin my‑frontend‑feature
-```
-Open a Pull Request on GitHub targeting `main`.
-
-### 6️⃣ Review Checklist (maintainers)
-- ✅ All `npm test` pass.
-- ✅ Lint passes (`npm run lint`).
-- ✅ Build succeeds (`npm run build`).
-- ✅ No CI failures.
-- ✅ Documentation updated if applicable.
-
-### Resources
-- **Next.js Docs**: https://nextjs.org/docs
-- **Stellar Soroban SDK**: https://soroban.stellar.org/docs
-- **Drips Wave Guidelines**: https://drips.network/wave-guidelines
-- **Contributor Covenant**: see `CODE_OF_CONDUCT.md`
+Follow [SECURITY.md](SECURITY.md) for vulnerabilities, the [Code of Conduct](CODE_OF_CONDUCT.md), and [shared review guidance](https://github.com/MoscowDev/LiquiVault/blob/main/CONTRIBUTING.md). Drips participation follows [official guidance](https://docs.drips.network/wave/maintainers/participating-in-a-wave/); repository labels do not establish approval.

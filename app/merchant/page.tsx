@@ -12,10 +12,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
-import {
-  RiskTier,
-  UIInvoice,
-} from "@/lib/sdk";
+import { RiskTier, UIInvoice } from "@/lib/sdk";
 import {
   formatAddress,
   formatBps,
@@ -52,25 +49,27 @@ import {
 } from "@/components/ui/dialog";
 
 export default function MerchantPage() {
-  const { invoices, mintInvoice, factorInvoice, settleInvoice, isSigning, quotes } =
-    useWallet();
+  const {
+    invoices,
+    mintInvoice,
+    factorInvoice,
+    settleInvoice,
+    isSigning,
+    quotes,
+  } = useWallet();
 
   // Form state for minting a new RWA invoice
   const [invoiceRef, setInvoiceRef] = useState("INV-2025-8904");
   const [debtorName, setDebtorName] = useState("");
-  const [debtorAddress, setDebtorAddress] = useState(
-    ""
-  );
+  const [debtorAddress, setDebtorAddress] = useState("");
   const [amountUsdc, setAmountUsdc] = useState("75000");
   const [daysUntilMaturity, setDaysUntilMaturity] = useState("45");
   const [riskTier, setRiskTier] = useState<RiskTier>("Tier A");
-  const [metadataHash, setMetadataHash] = useState(
-    ""
-  );
+  const [metadataHash, setMetadataHash] = useState("");
 
   // Selected invoice for factoring modal
   const [selectedInvoice, setSelectedInvoice] = useState<UIInvoice | null>(
-    null
+    null,
   );
 
   const handleGenerateHash = async () => {
@@ -116,8 +115,8 @@ export default function MerchantPage() {
             Merchant Receivable Tokenization & Factoring
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Mint B2B trade invoices for independent verification on Soroban and factor them for
-            instant discounted USDC liquidity.
+            Mint B2B trade invoices for independent verification on Soroban and
+            factor them for instant discounted USDC liquidity.
           </p>
         </div>
         <Badge variant="default" className="self-start sm:self-auto py-1 px-3">
@@ -241,15 +240,9 @@ export default function MerchantPage() {
                 value={riskTier}
                 onChange={(e) => setRiskTier(e.target.value as RiskTier)}
               >
-                <option value="Tier A">
-                  Tier A (rate set by contract)
-                </option>
-                <option value="Tier B">
-                  Tier B (rate set by contract)
-                </option>
-                <option value="Tier C">
-                  Tier C (rate set by contract)
-                </option>
+                <option value="Tier A">Tier A (rate set by contract)</option>
+                <option value="Tier B">Tier B (rate set by contract)</option>
+                <option value="Tier C">Tier C (rate set by contract)</option>
               </Select>
             </div>
 
@@ -357,8 +350,8 @@ export default function MerchantPage() {
                           inv.riskTier === "Tier A"
                             ? "default"
                             : inv.riskTier === "Tier B"
-                            ? "info"
-                            : "warning"
+                              ? "info"
+                              : "warning"
                         }
                       >
                         {inv.riskTier}
@@ -370,8 +363,8 @@ export default function MerchantPage() {
                           inv.status === "Settled"
                             ? "default"
                             : inv.status === "Factored"
-                            ? "info"
-                            : "warning"
+                              ? "info"
+                              : "warning"
                         }
                       >
                         {inv.status}
@@ -427,8 +420,8 @@ export default function MerchantPage() {
                 Atomic USDC Factoring Quote — Invoice #{selectedInvoice.id}
               </DialogTitle>
               <DialogDescription>
-                FactoringEscrow contract calculates time-weighted discount based on{" "}
-                {selectedInvoice.riskTier} underwriting and{" "}
+                FactoringEscrow contract calculates time-weighted discount based
+                on {selectedInvoice.riskTier} underwriting and{" "}
                 {activeQuote.daysToMaturity} days to maturity.
               </DialogDescription>
             </DialogHeader>
@@ -448,7 +441,8 @@ export default function MerchantPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">
-                  Effective Time-Weighted Discount ({activeQuote.daysToMaturity}d, including origination fee)
+                  Effective Time-Weighted Discount ({activeQuote.daysToMaturity}
+                  d, including origination fee)
                 </span>
                 <span className="font-mono text-amber-400">
                   -{formatUSDC(activeQuote.totalDiscountUsdc)} (
@@ -478,10 +472,7 @@ export default function MerchantPage() {
             </div>
 
             <DialogFooter>
-              <Button
-                variant="ghost"
-                onClick={() => setSelectedInvoice(null)}
-              >
+              <Button variant="ghost" onClick={() => setSelectedInvoice(null)}>
                 Cancel
               </Button>
               <Button

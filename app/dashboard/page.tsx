@@ -40,17 +40,26 @@ export default function DashboardPage() {
             (poolMetrics.utilizedLiquidityUsdc /
               poolMetrics.totalLiquidityUsdc) *
             100
-          ).toFixed(1)
+          ).toFixed(1),
         )
       : 0;
 
-  const tierBreakdown = (["Tier A", "Tier B", "Tier C"] as const).map((tier, i) => {
-    const active = invoices.filter(inv => inv.status === "Factored");
-    const total = active.reduce((sum, inv) => sum + inv.amountUsdc, 0);
-    const volumeUsdc = active.filter(inv => inv.riskTier === tier).reduce((sum, inv) => sum + inv.amountUsdc, 0);
-    return { tier: `${tier} (connected merchant invoices)`, aprBps: [600, 1000, 1500][i],
-      allocationPct: total ? volumeUsdc / total * 100 : 0, volumeUsdc, badgeVariant: "info" as const };
-  });
+  const tierBreakdown = (["Tier A", "Tier B", "Tier C"] as const).map(
+    (tier, i) => {
+      const active = invoices.filter((inv) => inv.status === "Factored");
+      const total = active.reduce((sum, inv) => sum + inv.amountUsdc, 0);
+      const volumeUsdc = active
+        .filter((inv) => inv.riskTier === tier)
+        .reduce((sum, inv) => sum + inv.amountUsdc, 0);
+      return {
+        tier: `${tier} (connected merchant invoices)`,
+        aprBps: [600, 1000, 1500][i],
+        allocationPct: total ? (volumeUsdc / total) * 100 : 0,
+        volumeUsdc,
+        badgeVariant: "info" as const,
+      };
+    },
+  );
 
   return (
     <div className="space-y-8">
@@ -162,8 +171,8 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Capital Utilization & Reserve Health</CardTitle>
             <CardDescription>
-              Contract snapshot allocation between active invoice advances and liquid
-              USDC reserves.
+              Contract snapshot allocation between active invoice advances and
+              liquid USDC reserves.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -212,9 +221,7 @@ export default function DashboardPage() {
               <div key={item.tier} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs sm:text-sm">
                   <div className="flex items-center space-x-2">
-                    <Badge variant={item.badgeVariant}>
-                      Risk Tier
-                    </Badge>
+                    <Badge variant={item.badgeVariant}>Risk Tier</Badge>
                     <span className="text-slate-200 font-medium">
                       {item.tier}
                     </span>

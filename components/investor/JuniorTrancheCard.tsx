@@ -36,13 +36,13 @@ export default function JuniorTrancheCard() {
   const parsedDeposit = parseFloat(depositAmount) || 0;
   const parsedWithdraw = parseFloat(withdrawShares) || 0;
   const previewRedeemedUsdc = Number(
-    (parsedWithdraw * poolMetrics.juniorSharePriceUsdc).toFixed(2)
+    (parsedWithdraw * poolMetrics.juniorSharePriceUsdc).toFixed(2),
   );
   const withdrawCheck = checkJuniorWithdrawal(
     previewRedeemedUsdc,
     poolMetrics.juniorLiquidityUsdc,
     poolMetrics.utilizedLiquidityUsdc,
-    poolMetrics.availableLiquidityUsdc
+    poolMetrics.availableLiquidityUsdc,
   );
   const requiredCoverageUsdc =
     (poolMetrics.utilizedLiquidityUsdc * JUNIOR_MIN_COVERAGE_BPS) / 10000;
@@ -54,12 +54,15 @@ export default function JuniorTrancheCard() {
           <ShieldAlert className="h-5 w-5 text-amber-400" />
           Junior First-Loss Tranche
           <Badge variant="info" className="ml-2">
-            {poolMetrics.juniorYieldBps === null ? "Yield cap unavailable on legacy deployment" : `${formatBps(poolMetrics.juniorYieldBps)} of LP yield (capital capped)`}
+            {poolMetrics.juniorYieldBps === null
+              ? "Yield cap unavailable on legacy deployment"
+              : `${formatBps(poolMetrics.juniorYieldBps)} of LP yield (capital capped)`}
           </Badge>
         </CardTitle>
         <CardDescription>
-          Junior capital absorbs invoice defaults before senior lvUSDC holders and earns a
-          configured allocation of yield, capped by its share of pool capital. You can lose your deposit.
+          Junior capital absorbs invoice defaults before senior lvUSDC holders
+          and earns a configured allocation of yield, capped by its share of
+          pool capital. You can lose your deposit.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -80,8 +83,12 @@ export default function JuniorTrancheCard() {
             </p>
           </div>
           <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
-            <p className="text-xs text-slate-400">Required Coverage (10% of deployed)</p>
-            <p className="font-mono text-slate-200">{formatUSDC(requiredCoverageUsdc)}</p>
+            <p className="text-xs text-slate-400">
+              Required Coverage (10% of deployed)
+            </p>
+            <p className="font-mono text-slate-200">
+              {formatUSDC(requiredCoverageUsdc)}
+            </p>
           </div>
         </div>
 
