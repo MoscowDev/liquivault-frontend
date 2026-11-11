@@ -44,29 +44,13 @@ export default function DashboardPage() {
         )
       : 0;
 
-  const tierBreakdown = [
-    {
-      tier: "Tier A (AAA/AA Institutional Debtors)",
-      aprBps: 600,
-      allocationPct: 58,
-      volumeUsdc: 823890,
-      badgeVariant: "default" as const,
-    },
-    {
-      tier: "Tier B (Investment Grade Corporate)",
-      aprBps: 1000,
-      allocationPct: 32,
-      volumeUsdc: 454560,
-      badgeVariant: "info" as const,
-    },
-    {
-      tier: "Tier C (Verified Mid-Market B2B)",
-      aprBps: 1500,
-      allocationPct: 10,
-      volumeUsdc: 142050,
-      badgeVariant: "warning" as const,
-    },
-  ];
+  const tierBreakdown = (["Tier A", "Tier B", "Tier C"] as const).map((tier, i) => {
+    const active = invoices.filter(inv => inv.status === "Factored");
+    const total = active.reduce((sum, inv) => sum + inv.amountUsdc, 0);
+    const volumeUsdc = active.filter(inv => inv.riskTier === tier).reduce((sum, inv) => sum + inv.amountUsdc, 0);
+    return { tier: `${tier} (connected merchant invoices)`, aprBps: [600, 1000, 1500][i],
+      allocationPct: total ? volumeUsdc / total * 100 : 0, volumeUsdc, badgeVariant: "info" as const };
+  });
 
   return (
     <div className="space-y-8">
@@ -76,13 +60,13 @@ export default function DashboardPage() {
             Protocol Analytics & Risk Telemetry
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Real-time Soroban smart contract state across LiquidityPool,
+            Periodically refreshed Soroban contract state across LiquidityPool,
             InvoiceAsset, and EscrowRouting contracts.
           </p>
         </div>
         <Badge variant="default" className="self-start sm:self-auto py-1 px-3">
           <Activity className="mr-1.5 h-3.5 w-3.5" />
-          Soroban Ledger Synced
+          Contract snapshots
         </Badge>
       </div>
 
@@ -135,7 +119,7 @@ export default function DashboardPage() {
               <TrendingUp className="h-4 w-4 text-emerald-400" />
             </CardDescription>
             <CardTitle className="text-2xl font-mono text-emerald-400">
-              {formatBps(poolMetrics.currentApyBps)}
+              {"Unavailable"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -151,13 +135,13 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center justify-between">
-              <span>Active Escrows & Default Rate</span>
+              <span>Active Escrows & Default Rate (unavailable)</span>
               <ShieldAlert className="h-4 w-4 text-amber-400" />
             </CardDescription>
             <CardTitle className="text-2xl font-mono text-white">
               {poolMetrics.activeEscrowsCount} Escrows{" "}
               <span className="text-sm font-normal text-emerald-400">
-                ({formatBps(poolMetrics.defaultRateBps)} Default)
+                ({"Unavailable"} Default)
               </span>
             </CardTitle>
           </CardHeader>
@@ -178,7 +162,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Capital Utilization & Reserve Health</CardTitle>
             <CardDescription>
-              Real-time allocation between active invoice advances and liquid
+              Contract snapshot allocation between active invoice advances and liquid
               USDC reserves.
             </CardDescription>
           </CardHeader>
@@ -220,8 +204,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Risk Tier Underwriting Distribution</CardTitle>
             <CardDescription>
-              Portfolio exposure segmented by debtor credit rating and base
-              annualized discount rate.
+              Connected merchant invoice face values by risk tier.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -230,7 +213,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between text-xs sm:text-sm">
                   <div className="flex items-center space-x-2">
                     <Badge variant={item.badgeVariant}>
-                      {formatBps(item.aprBps)} Base APR
+                      Risk Tier
                     </Badge>
                     <span className="text-slate-200 font-medium">
                       {item.tier}
@@ -250,7 +233,7 @@ export default function DashboardPage() {
       {/* Recent On-Chain Transactions Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Live Soroban Settlement & Factoring Ledger</CardTitle>
+          <CardTitle>Confirmed Activity This Session</CardTitle>
           <CardDescription>
             Recent atomic contract invocations across InvoiceAsset,
             LiquidityPool, and EscrowRouting.

@@ -35,8 +35,8 @@ export default function HomePage() {
         <div className="max-w-3xl space-y-6">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">Stellar Soroban RWA Protocol</Badge>
-            <Badge variant="info">SEP-10 & SEP-24 Compliant</Badge>
-            <Badge variant="secondary">SEP-41 USDC Native</Badge>
+            <Badge variant="info">Freighter ? Soroban Testnet</Badge>
+            <Badge variant="secondary">SEP-41 Test Token</Badge>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
@@ -62,7 +62,7 @@ export default function HomePage() {
             <Link href="/investor">
               <Button variant="outline" size="lg" className="gap-2">
                 <Landmark className="h-4 w-4 text-emerald-400" />
-                Provide USDC Liquidity ({formatBps(poolMetrics.currentApyBps)} APY)
+                Provide USDC Liquidity ({"Unavailable"} APY)
               </Button>
             </Link>
             <Link href="/dashboard">
@@ -94,10 +94,10 @@ export default function HomePage() {
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
-              Real-Time LP Yield (APY)
+              Historical APY unavailable
             </p>
             <p className="mt-1 text-2xl font-bold font-mono text-sky-400">
-              {formatBps(poolMetrics.currentApyBps)}
+              {"Unavailable"}
             </p>
           </div>
           <div>

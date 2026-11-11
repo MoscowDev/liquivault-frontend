@@ -87,12 +87,5 @@ export async function generateInvoiceMetadataHash(payload: string): Promise<stri
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   }
-  // Fallback deterministic hex string for test environments without SubtleCrypto
-  let hash = 0;
-  for (let i = 0; i < payload.length; i++) {
-    hash = (hash << 5) - hash + payload.charCodeAt(i);
-    hash |= 0;
-  }
-  const seed = Math.abs(hash).toString(16).padStart(8, "0");
-  return seed.repeat(8).slice(0, 64);
+  throw new Error("SHA-256 requires Web Crypto in a secure browser context");
 }

@@ -15,8 +15,6 @@ import { useWallet } from "@/context/WalletContext";
 import {
   RiskTier,
   UIInvoice,
-  calculateFactoringQuote,
-  RISK_TIER_RATES_BPS,
 } from "@/lib/sdk";
 import {
   formatAddress,
@@ -54,20 +52,20 @@ import {
 } from "@/components/ui/dialog";
 
 export default function MerchantPage() {
-  const { invoices, mintInvoice, factorInvoice, settleInvoice, isSigning } =
+  const { invoices, mintInvoice, factorInvoice, settleInvoice, isSigning, quotes } =
     useWallet();
 
   // Form state for minting a new RWA invoice
   const [invoiceRef, setInvoiceRef] = useState("INV-2025-8904");
-  const [debtorName, setDebtorName] = useState("Bosch Global Industrial GmbH");
+  const [debtorName, setDebtorName] = useState("");
   const [debtorAddress, setDebtorAddress] = useState(
-    "GB4BOSCH9GLOBAL7INDUSTRIAL3SOROBAN6DEBTOR2TREASURY8X1K"
+    ""
   );
   const [amountUsdc, setAmountUsdc] = useState("75000");
   const [daysUntilMaturity, setDaysUntilMaturity] = useState("45");
   const [riskTier, setRiskTier] = useState<RiskTier>("Tier A");
   const [metadataHash, setMetadataHash] = useState(
-    "7c4a8d09ca3762af61e59520943dc26494f8941b88a1e72b92f4d9e81234abcd"
+    ""
   );
 
   // Selected invoice for factoring modal
@@ -102,13 +100,7 @@ export default function MerchantPage() {
     setInvoiceRef(`INV-2025-${nextNum}`);
   };
 
-  const activeQuote = selectedInvoice
-    ? calculateFactoringQuote(
-        selectedInvoice.amountUsdc,
-        selectedInvoice.maturityTimestamp,
-        selectedInvoice.riskTier
-      )
-    : null;
+  const activeQuote = selectedInvoice ? quotes[selectedInvoice.id] : null;
 
   const handleConfirmFactor = async () => {
     if (!selectedInvoice) return;
@@ -124,13 +116,13 @@ export default function MerchantPage() {
             Merchant Receivable Tokenization & Factoring
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Mint verified B2B trade invoices on Soroban and factor them for
+            Mint B2B trade invoices for independent verification on Soroban and factor them for
             instant discounted USDC liquidity.
           </p>
         </div>
         <Badge variant="default" className="self-start sm:self-auto py-1 px-3">
           <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-          SEP-10 Merchant KYB Active
+          Independent verification required
         </Badge>
       </div>
 
@@ -250,13 +242,13 @@ export default function MerchantPage() {
                 onChange={(e) => setRiskTier(e.target.value as RiskTier)}
               >
                 <option value="Tier A">
-                  Tier A — 6.00% Base APR (Institutional AAA/AA)
+                  Tier A (rate set by contract)
                 </option>
                 <option value="Tier B">
-                  Tier B — 10.00% Base APR (Investment Grade)
+                  Tier B (rate set by contract)
                 </option>
                 <option value="Tier C">
-                  Tier C — 15.00% Base APR (Mid-Market B2B)
+                  Tier C (rate set by contract)
                 </option>
               </Select>
             </div>
@@ -297,7 +289,7 @@ export default function MerchantPage() {
                 <FilePlus2 className="h-4 w-4" />
                 {isSigning
                   ? "Signing Soroban Transaction..."
-                  : "Mint & Verify RWA Invoice"}
+                  : "Mint Invoice RWA Invoice"}
               </Button>
             </div>
           </form>
@@ -329,11 +321,7 @@ export default function MerchantPage() {
             <TableBody>
               {invoices.map((inv) => {
                 const daysLeft = getDaysToMaturity(inv.maturityTimestamp);
-                const previewQuote = calculateFactoringQuote(
-                  inv.amountUsdc,
-                  inv.maturityTimestamp,
-                  inv.riskTier
-                );
+                const previewQuote = quotes[inv.id];
                 return (
                   <TableRow key={inv.id}>
                     <TableCell>
@@ -373,7 +361,7 @@ export default function MerchantPage() {
                             : "warning"
                         }
                       >
-                        {inv.riskTier} ({formatBps(RISK_TIER_RATES_BPS[inv.riskTier])})
+                        {inv.riskTier}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -390,7 +378,7 @@ export default function MerchantPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {inv.status === "Verified" || inv.status === "Issued" ? (
+                      {inv.status === "Verified" && previewQuote ? (
                         <Button
                           size="sm"
                           onClick={() => setSelectedInvoice(inv)}
@@ -408,7 +396,7 @@ export default function MerchantPage() {
                           className="gap-1.5 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          Simulate Debtor Settlement
+                          Repay Invoice
                         </Button>
                       ) : (
                         <span className="text-xs font-mono text-slate-500">
@@ -439,7 +427,7 @@ export default function MerchantPage() {
                 Atomic USDC Factoring Quote — Invoice #{selectedInvoice.id}
               </DialogTitle>
               <DialogDescription>
-                LiquidityPool contract calculates time-weighted discount based on{" "}
+                FactoringEscrow contract calculates time-weighted discount based on{" "}
                 {selectedInvoice.riskTier} underwriting and{" "}
                 {activeQuote.daysToMaturity} days to maturity.
               </DialogDescription>
@@ -460,8 +448,7 @@ export default function MerchantPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">
-                  Effective Time-Weighted Discount ({activeQuote.daysToMaturity}d @{" "}
-                  {formatBps(activeQuote.annualizedRateBps)} APR)
+                  Effective Time-Weighted Discount ({activeQuote.daysToMaturity}d, including origination fee)
                 </span>
                 <span className="font-mono text-amber-400">
                   -{formatUSDC(activeQuote.totalDiscountUsdc)} (
@@ -469,13 +456,13 @@ export default function MerchantPage() {
                 </span>
               </div>
               <div className="flex justify-between text-xs text-slate-400">
-                <span>• LP Yield Allocation (90% of Discount)</span>
+                <span>• LP Yield Allocation</span>
                 <span className="font-mono">
                   {formatUSDC(activeQuote.lpYieldUsdc)}
                 </span>
               </div>
               <div className="flex justify-between text-xs text-slate-400">
-                <span>• Protocol Reserve Fee (10% of Discount)</span>
+                <span>• Protocol Reserve Fee</span>
                 <span className="font-mono">
                   {formatUSDC(activeQuote.protocolFeeUsdc)}
                 </span>

@@ -81,6 +81,7 @@ export default function InvestorPage() {
 
   return (
     <div className="space-y-8">
+      <p className="text-sm text-amber-300">Testnet token. Each deposit locks that tranche?s withdrawals for 24 hours. Junior yield is capped by its capital share.</p>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
@@ -93,7 +94,7 @@ export default function InvestorPage() {
         </div>
         <Badge variant="info" className="self-start sm:self-auto py-1 px-3">
           <TrendingUp className="mr-1.5 h-3.5 w-3.5" />
-          Current Pool APY: {formatBps(poolMetrics.currentApyBps)}
+          Current Pool APY: {"Unavailable"}
         </Badge>
       </div>
 
@@ -148,7 +149,7 @@ export default function InvestorPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-slate-400">
-              90% of invoice discounts auto-compound into lvUSDC
+              Senior yield allocation accrues to lvUSDC share value
             </p>
           </CardContent>
         </Card>
@@ -165,7 +166,7 @@ export default function InvestorPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-slate-400">
-              SEP-41 Native Circle USDC on Soroban
+              Configured SEP-41 testnet token
             </p>
           </CardContent>
         </Card>
@@ -241,7 +242,7 @@ export default function InvestorPage() {
                     <div className="flex justify-between">
                       <span className="text-slate-400">Projected APY</span>
                       <span className="font-mono text-sky-400">
-                        {formatBps(poolMetrics.currentApyBps)}
+                        {"Unavailable"}
                       </span>
                     </div>
                   </div>

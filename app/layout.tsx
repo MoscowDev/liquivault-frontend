@@ -27,7 +27,7 @@ export default function RootLayout({
               <div className="flex items-center space-x-2">
                 <span className="font-semibold text-slate-300">LiquiVault Protocol</span>
                 <span>•</span>
-                <span>Powered by Stellar Soroban Smart Contracts (SEP-41, SEP-10, SEP-24)</span>
+                <span>Powered by Stellar Soroban Smart Contracts ? Testnet token</span>
               </div>
               <div className="font-mono text-slate-400">
                 Network: Test SDF Network ; September 2015

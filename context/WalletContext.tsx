@@ -1,18 +1,9 @@
 "use client";
-
-import React, { createContext, useContext, useState, useCallback } from "react";
-import {
-  INITIAL_INVOICES,
-  INITIAL_POOL_METRICS,
-  INITIAL_TRANSACTIONS,
-  RiskTier,
-  STELLAR_CONFIG,
-  UIInvoice,
-  UIPoolMetrics,
-  UIProtocolTransaction,
-  calculateFactoringQuote,
-  checkJuniorWithdrawal,
-} from "@/lib/sdk";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import type { TransactionResult } from "@liquivault/sdk";
+import { createSDK, fromUnits, toUnits, fromSDKRiskTier, toSDKRiskTier, quoteForUI,
+  INITIAL_POOL_METRICS, STELLAR_CONFIG, type DiscountQuote, type RiskTier,
+  type UIInvoice, type UIPoolMetrics, type UIProtocolTransaction } from "@/lib/sdk";
 
 export interface MintInvoiceInput {
   invoiceRef: string;
@@ -28,8 +19,6 @@ export interface WalletContextType {
   isConnected: boolean;
   publicKey: string | null;
   network: string;
-  isSep10Verified: boolean;
-  sep10Jwt: string | null;
   usdcBalance: number;
   lpSharesBalance: number;
   juniorSharesBalance: number;
@@ -39,12 +28,12 @@ export interface WalletContextType {
   invoices: UIInvoice[];
   transactions: UIProtocolTransaction[];
   poolMetrics: UIPoolMetrics;
+  quotes: Record<number, DiscountQuote>;
+  dataStatus: string;
   isSigning: boolean;
   lastNotification: string | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
-  sep10Authenticate: () => Promise<string>;
-  signWithFreighter: (actionDescription: string) => Promise<string>;
   mintInvoice: (input: MintInvoiceInput) => Promise<UIInvoice>;
   factorInvoice: (invoiceId: number) => Promise<void>;
   settleInvoice: (invoiceId: number) => Promise<void>;
@@ -56,502 +45,122 @@ export interface WalletContextType {
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
-
+const sdk = createSDK();
+const emptyAccount = { usdcBalance: 0, lpSharesBalance: 0, juniorSharesBalance: 0,
+  juniorDepositedUsdc: 0, depositedUsdc: 0, earnedYieldUsdc: 0 };
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [isConnected, setIsConnected] = useState<boolean>(true);
-  const [publicKey, setPublicKey] = useState<string | null>(
-    "GB7LQV5MERCHANT8INSTITUTIONAL4SOROBAN9VAULT2WALLET7M94X2K"
-  );
-  const [network] = useState<string>(STELLAR_CONFIG.network);
-  const [isSep10Verified, setIsSep10Verified] = useState<boolean>(true);
-  const [sep10Jwt, setSep10Jwt] = useState<string | null>(
-    "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.sep10_verified_session"
-  );
-
-  const [usdcBalance, setUsdcBalance] = useState<number>(485250.0);
-  const [lpSharesBalance, setLpSharesBalance] = useState<number>(125000.0);
-  const [depositedUsdc, setDepositedUsdc] = useState<number>(125000.0);
-  const [earnedYieldUsdc, setEarnedYieldUsdc] = useState<number>(5625.0);
-  const [juniorSharesBalance, setJuniorSharesBalance] = useState<number>(0);
-  const [juniorDepositedUsdc, setJuniorDepositedUsdc] = useState<number>(0);
-
-  const [invoices, setInvoices] = useState<UIInvoice[]>(INITIAL_INVOICES);
-  const [transactions, setTransactions] =
-    useState<UIProtocolTransaction[]>(INITIAL_TRANSACTIONS);
-  const [poolMetrics, setPoolMetrics] =
-    useState<UIPoolMetrics>(INITIAL_POOL_METRICS);
-  const [isSigning, setIsSigning] = useState<boolean>(false);
+  const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [account, setAccount] = useState(emptyAccount);
+  const [invoices, setInvoices] = useState<UIInvoice[]>([]);
+  const [transactions, setTransactions] = useState<UIProtocolTransaction[]>([]);
+  const [poolMetrics, setPoolMetrics] = useState<UIPoolMetrics>(INITIAL_POOL_METRICS);
+  const [quotes, setQuotes] = useState<Record<number, DiscountQuote>>({});
+  const [isSigning, setIsSigning] = useState(false);
   const [lastNotification, setLastNotification] = useState<string | null>(null);
-
-  const clearNotification = useCallback(() => setLastNotification(null), []);
-
-  const connectWallet = useCallback(async () => {
-    setIsSigning(true);
-    try {
-      // Attempt real Freighter extension detection if available in browser
-      if (typeof window !== "undefined") {
-        try {
-          const freighter = await import("@stellar/freighter-api");
-          const connectedRes: unknown = await freighter.isConnected();
-          const isConnectedResult =
-            typeof connectedRes === "object" && connectedRes !== null
-              ? Boolean((connectedRes as { isConnected?: boolean }).isConnected)
-              : Boolean(connectedRes);
-
-          if (isConnectedResult) {
-            const accessRes: unknown = await freighter.requestAccess();
-            const address =
-              typeof accessRes === "object" && accessRes !== null
-                ? (accessRes as { address?: string }).address
-                : typeof accessRes === "string"
-                ? accessRes
-                : undefined;
-
-            if (address) {
-              setPublicKey(address);
-              setIsConnected(true);
-              setLastNotification(
-                `Connected Freighter Wallet (${address.slice(0, 6)}...${address.slice(-4)}) on Stellar Testnet`
-              );
-              return;
-            }
-          }
-        } catch {
-          // Fallback to institutional Testnet wallet if Freighter browser extension is not installed
-        }
-      }
-
-      const fallbackKey =
-        "GB7LQV5MERCHANT8INSTITUTIONAL4SOROBAN9VAULT2WALLET7M94X2K";
-      setPublicKey(fallbackKey);
-      setIsConnected(true);
-      setLastNotification(
-        "Connected Freighter Institutional Signer on Stellar Soroban Testnet"
-      );
-    } finally {
-      setIsSigning(false);
+  const [dataStatus, setDataStatus] = useState("Loading contract state?");
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      try { await load(publicKey, () => active); }
+      catch (e) { if (active) setDataStatus(`Contract data unavailable: ${String(e)}`); }
     }
-  }, []);
+    void refresh();
+    const timer = setInterval(refresh, 30000);
+    return () => { active = false; clearInterval(timer); };
+  }, [publicKey]);
 
-  const disconnectWallet = useCallback(() => {
-    setIsConnected(false);
-    setPublicKey(null);
-    setIsSep10Verified(false);
-    setSep10Jwt(null);
-    setLastNotification("Freighter Wallet disconnected.");
-  }, []);
-
-  const sep10Authenticate = useCallback(async (): Promise<string> => {
-    setIsSigning(true);
-    try {
-      const simulatedJwt = `eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.sep10_${Date.now()}`;
-      setIsSep10Verified(true);
-      setSep10Jwt(simulatedJwt);
-      setLastNotification(
-        `SEP-10 Web Authentication verified with ${STELLAR_CONFIG.anchor.homeDomain}`
-      );
-      return simulatedJwt;
-    } finally {
-      setIsSigning(false);
+  async function load(address: string | null, active = () => true) {
+    const [pool, junior, metrics, yieldBps, treasury] = await Promise.all([
+      sdk.liquidityPool.getPoolState(), sdk.liquidityPool.getJuniorState(),
+      sdk.rpc.simulateViewCall<[bigint, bigint]>(STELLAR_CONFIG.contracts.escrowRouting, "get_protocol_metrics", []),
+      sdk.rpc.simulateViewCall<number>(STELLAR_CONFIG.contracts.liquidityPool, "get_junior_yield_bps", []).catch(() => null),
+      sdk.liquidityPool.getPoolState().then(p => sdk.rpc.simulateViewCall<bigint>(STELLAR_CONFIG.contracts.usdcToken, "balance", [p.treasury]))
+    ]);
+    if (!active()) return;
+    setPoolMetrics({ ...INITIAL_POOL_METRICS, totalLiquidityUsdc: fromUnits(pool.totalAssets + junior.totalAssets),
+      utilizedLiquidityUsdc: fromUnits(pool.deployedCapital), availableLiquidityUsdc: fromUnits(pool.totalAssets + junior.totalAssets - pool.deployedCapital),
+      totalFactoredVolumeUsdc: fromUnits(metrics[0]), activeEscrowsCount: Number(metrics[1]),
+      protocolFeeReserveUsdc: fromUnits(treasury), totalLpShares: fromUnits(pool.totalShares),
+      sharePriceUsdc: pool.totalShares ? Number(pool.totalAssets) / Number(pool.totalShares) : 1,
+      juniorLiquidityUsdc: fromUnits(junior.totalAssets), juniorSharePriceUsdc: junior.totalShares ? Number(junior.totalAssets) / Number(junior.totalShares) : 1,
+      juniorYieldBps: yieldBps === null ? null : Math.min(yieldBps, junior.totalAssets ? Number(junior.totalAssets * 10000n / (junior.totalAssets + pool.totalAssets)) : 0) });
+    if (address) {
+      const [seniorPos, juniorPos, balance, ids] = await Promise.all([
+        sdk.liquidityPool.getLPPosition(address), sdk.liquidityPool.getJuniorPosition(address),
+        sdk.rpc.simulateViewCall<bigint>(STELLAR_CONFIG.contracts.usdcToken, "balance", [address]),
+        sdk.invoiceRegistry.getMerchantInvoices(address)]);
+      const records = await Promise.all(ids.map(id => sdk.invoiceRegistry.getInvoice(id)));
+      const nextQuotes: Record<number, DiscountQuote> = {};
+      await Promise.all(records.filter(r => r.status === "Verified" && r.maturityTimestamp > Date.now()/1000).map(async r => {
+        nextQuotes[Number(r.invoiceId)] = quoteForUI(await sdk.factoringEscrow.previewFactoringQuote(r.invoiceId), pool.reserveFactorBps);
+      }));
+      if (!active()) return;
+      setQuotes(nextQuotes);
+      setInvoices(records.map(r => ({ id: Number(r.invoiceId), invoiceRef: r.invoiceNumber, merchantAddress: r.merchant,
+        debtorName: r.debtor, debtorAddress: r.debtor, amountUsdc: fromUnits(r.faceValue), maturityTimestamp: r.maturityTimestamp,
+        riskTier: fromSDKRiskTier(r.riskTier), metadataHash: r.metadataHash, status: r.status, txHash: "" })));
+      const value = pool.totalShares ? seniorPos.shares * pool.totalAssets / pool.totalShares : 0n;
+      setAccount({ usdcBalance: fromUnits(balance), lpSharesBalance: fromUnits(seniorPos.shares),
+        juniorSharesBalance: fromUnits(juniorPos.shares), juniorDepositedUsdc: fromUnits(juniorPos.depositedUsdc),
+        depositedUsdc: fromUnits(seniorPos.depositedUsdc), earnedYieldUsdc: fromUnits(value - seniorPos.depositedUsdc) });
     }
-  }, []);
-
-  const signWithFreighter = useCallback(
-    async (actionDescription: string): Promise<string> => {
-      setIsSigning(true);
-      try {
-        const randomHex = Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join("");
-        setLastNotification(`${actionDescription} — Signed & finalized on Soroban`);
-        return randomHex;
-      } finally {
-        setIsSigning(false);
-      }
-    },
-    []
-  );
-
-  const mintInvoice = useCallback(
-    async (input: MintInvoiceInput): Promise<UIInvoice> => {
-      const txHash = await signWithFreighter(
-        `Minted & Verified Trade Receivable ${input.invoiceRef} (${input.amountUsdc.toLocaleString()} USDC)`
-      );
-      const nextId =
-        invoices.reduce((max, inv) => Math.max(max, inv.id), 1041) + 1;
-
-      const newInvoice: UIInvoice = {
-        id: nextId,
-        invoiceRef: input.invoiceRef,
-        merchantAddress: publicKey ? `${publicKey.slice(0, 6)}...${publicKey.slice(-6)}` : "GB7LQV...M94X2K",
-        debtorName: input.debtorName,
-        debtorAddress: input.debtorAddress,
-        amountUsdc: input.amountUsdc,
-        maturityTimestamp: input.maturityTimestamp,
-        riskTier: input.riskTier,
-        metadataHash: input.metadataHash,
-        status: "Verified",
-        txHash,
-      };
-
-      setInvoices((prev) => [newInvoice, ...prev]);
-      setTransactions((prev) => [
-        {
-          id: `tx-${Date.now()}`,
-          type: "MINT_INVOICE",
-          invoiceId: nextId,
-          actor: newInvoice.merchantAddress,
-          amountUsdc: input.amountUsdc,
-          timestamp: "Just now",
-          txHash,
-          status: "FINALIZED",
-        },
-        ...prev,
-      ]);
-
-      return newInvoice;
-    },
-    [invoices, publicKey, signWithFreighter]
-  );
-
-  const factorInvoice = useCallback(
-    async (invoiceId: number) => {
-      const target = invoices.find((inv) => inv.id === invoiceId);
-      if (!target) return;
-
-      const quote = calculateFactoringQuote(
-        target.amountUsdc,
-        target.maturityTimestamp,
-        target.riskTier
-      );
-
-      const txHash = await signWithFreighter(
-        `Factored Invoice #${invoiceId} for ${quote.netPayoutUsdc.toLocaleString()} instant USDC`
-      );
-
-      setInvoices((prev) =>
-        prev.map((inv) =>
-          inv.id === invoiceId
-            ? {
-                ...inv,
-                status: "Factored",
-                escrowId: 500 + invoiceId,
-                netPayoutUsdc: quote.netPayoutUsdc,
-                discountBps: quote.effectiveDiscountBps,
-                txHash,
-              }
-            : inv
-        )
-      );
-
-      setUsdcBalance((prev) => prev + quote.netPayoutUsdc);
-
-      setPoolMetrics((prev) => ({
-        ...prev,
-        utilizedLiquidityUsdc: prev.utilizedLiquidityUsdc + quote.netPayoutUsdc,
-        availableLiquidityUsdc: Math.max(
-          0,
-          prev.availableLiquidityUsdc - quote.netPayoutUsdc
-        ),
-        totalFactoredVolumeUsdc:
-          prev.totalFactoredVolumeUsdc + target.amountUsdc,
-        activeEscrowsCount: prev.activeEscrowsCount + 1,
-      }));
-
-      setTransactions((prev) => [
-        {
-          id: `tx-${Date.now()}`,
-          type: "FACTOR_INVOICE",
-          invoiceId,
-          actor: target.merchantAddress,
-          amountUsdc: quote.netPayoutUsdc,
-          timestamp: "Just now",
-          txHash,
-          status: "FINALIZED",
-        },
-        ...prev,
-      ]);
-    },
-    [invoices, signWithFreighter]
-  );
-
-  const settleInvoice = useCallback(
-    async (invoiceId: number) => {
-      const target = invoices.find((inv) => inv.id === invoiceId);
-      if (!target) return;
-
-      const quote = calculateFactoringQuote(
-        target.amountUsdc,
-        target.maturityTimestamp,
-        target.riskTier
-      );
-
-      const txHash = await signWithFreighter(
-        `Debtor Settled Escrow for Invoice #${invoiceId} (${target.amountUsdc.toLocaleString()} USDC)`
-      );
-
-      setInvoices((prev) =>
-        prev.map((inv) =>
-          inv.id === invoiceId ? { ...inv, status: "Settled", txHash } : inv
-        )
-      );
-
-      setPoolMetrics((prev) => {
-        const nextTotalLiquidity = prev.totalLiquidityUsdc + quote.lpYieldUsdc;
-        const nextSharePrice = Number(
-          (nextTotalLiquidity / prev.totalLpShares).toFixed(4)
-        );
-        return {
-          ...prev,
-          totalLiquidityUsdc: nextTotalLiquidity,
-          utilizedLiquidityUsdc: Math.max(
-            0,
-            prev.utilizedLiquidityUsdc - (target.netPayoutUsdc ?? quote.netPayoutUsdc)
-          ),
-          availableLiquidityUsdc:
-            prev.availableLiquidityUsdc + target.amountUsdc - quote.protocolFeeUsdc,
-          protocolFeeReserveUsdc:
-            prev.protocolFeeReserveUsdc + quote.protocolFeeUsdc,
-          sharePriceUsdc: nextSharePrice,
-          activeEscrowsCount: Math.max(0, prev.activeEscrowsCount - 1),
-        };
-      });
-
-      setEarnedYieldUsdc((prev) => Number((prev + quote.lpYieldUsdc * 0.12).toFixed(2)));
-
-      setTransactions((prev) => [
-        {
-          id: `tx-${Date.now()}`,
-          type: "SETTLE_ESCROW",
-          invoiceId,
-          actor: `${target.debtorAddress.slice(0, 6)}...${target.debtorAddress.slice(-6)}`,
-          amountUsdc: target.amountUsdc,
-          timestamp: "Just now",
-          txHash,
-          status: "FINALIZED",
-        },
-        ...prev,
-      ]);
-    },
-    [invoices, signWithFreighter]
-  );
-
-  const depositLiquidity = useCallback(
-    async (amountUsdc: number) => {
-      if (amountUsdc <= 0) return;
-      const mintedShares = Number(
-        (amountUsdc / poolMetrics.sharePriceUsdc).toFixed(2)
-      );
-
-      const txHash = await signWithFreighter(
-        `Deposited ${amountUsdc.toLocaleString()} USDC for ${mintedShares.toLocaleString()} lvUSDC LP Shares`
-      );
-
-      setUsdcBalance((prev) => Math.max(0, prev - amountUsdc));
-      setDepositedUsdc((prev) => prev + amountUsdc);
-      setLpSharesBalance((prev) => Number((prev + mintedShares).toFixed(2)));
-
-      setPoolMetrics((prev) => ({
-        ...prev,
-        totalLiquidityUsdc: prev.totalLiquidityUsdc + amountUsdc,
-        availableLiquidityUsdc: prev.availableLiquidityUsdc + amountUsdc,
-        totalLpShares: Number((prev.totalLpShares + mintedShares).toFixed(2)),
-      }));
-
-      setTransactions((prev) => [
-        {
-          id: `tx-${Date.now()}`,
-          type: "LP_DEPOSIT",
-          actor: publicKey
-            ? `${publicKey.slice(0, 6)}...${publicKey.slice(-6)}`
-            : "GB7LQV...M94X2K",
-          amountUsdc,
-          timestamp: "Just now",
-          txHash,
-          status: "FINALIZED",
-        },
-        ...prev,
-      ]);
-    },
-    [poolMetrics.sharePriceUsdc, publicKey, signWithFreighter]
-  );
-
-  const withdrawLiquidity = useCallback(
-    async (sharesAmount: number) => {
-      if (sharesAmount <= 0) return;
-      const redeemedUsdc = Number(
-        (sharesAmount * poolMetrics.sharePriceUsdc).toFixed(2)
-      );
-
-      const txHash = await signWithFreighter(
-        `Redeemed ${sharesAmount.toLocaleString()} lvUSDC Shares for ${redeemedUsdc.toLocaleString()} USDC`
-      );
-
-      setLpSharesBalance((prev) => Math.max(0, Number((prev - sharesAmount).toFixed(2))));
-      setDepositedUsdc((prev) => Math.max(0, Number((prev - redeemedUsdc).toFixed(2))));
-      setUsdcBalance((prev) => Number((prev + redeemedUsdc).toFixed(2)));
-
-      setPoolMetrics((prev) => ({
-        ...prev,
-        totalLiquidityUsdc: Math.max(0, prev.totalLiquidityUsdc - redeemedUsdc),
-        availableLiquidityUsdc: Math.max(
-          0,
-          prev.availableLiquidityUsdc - redeemedUsdc
-        ),
-        totalLpShares: Math.max(1, Number((prev.totalLpShares - sharesAmount).toFixed(2))),
-      }));
-
-      setTransactions((prev) => [
-        {
-          id: `tx-${Date.now()}`,
-          type: "LP_WITHDRAW",
-          actor: publicKey
-            ? `${publicKey.slice(0, 6)}...${publicKey.slice(-6)}`
-            : "GB7LQV...M94X2K",
-          amountUsdc: redeemedUsdc,
-          timestamp: "Just now",
-          txHash,
-          status: "FINALIZED",
-        },
-        ...prev,
-      ]);
-    },
-    [poolMetrics.sharePriceUsdc, publicKey, signWithFreighter]
-  );
-
-  const depositJunior = useCallback(
-    async (amountUsdc: number) => {
-      if (amountUsdc <= 0) return;
-      const mintedShares = Number(
-        (amountUsdc / poolMetrics.juniorSharePriceUsdc).toFixed(2)
-      );
-
-      const txHash = await signWithFreighter(
-        `Deposited ${amountUsdc.toLocaleString()} USDC into the junior first-loss tranche`
-      );
-
-      setUsdcBalance((prev) => Math.max(0, prev - amountUsdc));
-      setJuniorDepositedUsdc((prev) => prev + amountUsdc);
-      setJuniorSharesBalance((prev) => Number((prev + mintedShares).toFixed(2)));
-      setPoolMetrics((prev) => ({
-        ...prev,
-        totalLiquidityUsdc: prev.totalLiquidityUsdc + amountUsdc,
-        availableLiquidityUsdc: prev.availableLiquidityUsdc + amountUsdc,
-        juniorLiquidityUsdc: prev.juniorLiquidityUsdc + amountUsdc,
-      }));
-
-      setTransactions((prev) => [
-        {
-          id: `tx-${Date.now()}`,
-          type: "LP_DEPOSIT",
-          actor: publicKey
-            ? `${publicKey.slice(0, 6)}...${publicKey.slice(-6)}`
-            : "GB7LQV...M94X2K",
-          amountUsdc,
-          timestamp: "Just now",
-          txHash,
-          status: "FINALIZED",
-        },
-        ...prev,
-      ]);
-    },
-    [poolMetrics.juniorSharePriceUsdc, publicKey, signWithFreighter]
-  );
-
-  const withdrawJunior = useCallback(
-    async (sharesAmount: number) => {
-      if (sharesAmount <= 0) return;
-      if (sharesAmount > juniorSharesBalance) {
-        setLastNotification("Cannot redeem more junior shares than you hold.");
-        return;
-      }
-      const redeemedUsdc = Number(
-        (sharesAmount * poolMetrics.juniorSharePriceUsdc).toFixed(2)
-      );
-      const check = checkJuniorWithdrawal(
-        redeemedUsdc,
-        poolMetrics.juniorLiquidityUsdc,
-        poolMetrics.utilizedLiquidityUsdc,
-        poolMetrics.availableLiquidityUsdc
-      );
-      if (!check.allowed) {
-        setLastNotification(`Junior withdrawal blocked: ${check.reason}`);
-        return;
-      }
-
-      const txHash = await signWithFreighter(
-        `Redeemed ${sharesAmount.toLocaleString()} junior shares for ${redeemedUsdc.toLocaleString()} USDC`
-      );
-
-      setJuniorSharesBalance((prev) => Math.max(0, Number((prev - sharesAmount).toFixed(2))));
-      setJuniorDepositedUsdc((prev) => Math.max(0, Number((prev - redeemedUsdc).toFixed(2))));
-      setUsdcBalance((prev) => Number((prev + redeemedUsdc).toFixed(2)));
-      setPoolMetrics((prev) => ({
-        ...prev,
-        totalLiquidityUsdc: Math.max(0, prev.totalLiquidityUsdc - redeemedUsdc),
-        availableLiquidityUsdc: Math.max(0, prev.availableLiquidityUsdc - redeemedUsdc),
-        juniorLiquidityUsdc: Math.max(0, prev.juniorLiquidityUsdc - redeemedUsdc),
-      }));
-
-      setTransactions((prev) => [
-        {
-          id: `tx-${Date.now()}`,
-          type: "LP_WITHDRAW",
-          actor: publicKey
-            ? `${publicKey.slice(0, 6)}...${publicKey.slice(-6)}`
-            : "GB7LQV...M94X2K",
-          amountUsdc: redeemedUsdc,
-          timestamp: "Just now",
-          txHash,
-          status: "FINALIZED",
-        },
-        ...prev,
-      ]);
-    },
-    [juniorSharesBalance, poolMetrics, publicKey, signWithFreighter]
-  );
-  return (
-    <WalletContext.Provider
-      value={{
-        isConnected,
-        publicKey,
-        network,
-        isSep10Verified,
-        sep10Jwt,
-        usdcBalance,
-        lpSharesBalance,
-        juniorSharesBalance,
-        juniorDepositedUsdc,
-        depositedUsdc,
-        earnedYieldUsdc,
-        invoices,
-        transactions,
-        poolMetrics,
-        isSigning,
-        lastNotification,
-        connectWallet,
-        disconnectWallet,
-        sep10Authenticate,
-        signWithFreighter,
-        mintInvoice,
-        factorInvoice,
-        settleInvoice,
-        depositLiquidity,
-        withdrawLiquidity,
-        depositJunior,
-        withdrawJunior,
-        clearNotification,
-      }}
-    >
-      {children}
-    </WalletContext.Provider>
-  );
-}
-
-export function useWallet() {
-  const ctx = useContext(WalletContext);
-  if (!ctx) {
-    throw new Error("useWallet must be used within a WalletProvider");
+    if (active()) setDataStatus(`Contract snapshot: ${new Date().toLocaleTimeString()}. APY/default-rate history unavailable. Activity shows this session only.`);
   }
-  return ctx;
+  async function connectWallet() {
+    setIsSigning(true);
+    try {
+      if (!await sdk.wallet.isConnected()) throw new Error("Install and unlock Freighter to connect");
+      const connection = await sdk.wallet.connect();
+      if (connection.networkPassphrase !== STELLAR_CONFIG.networkPassphrase) throw new Error("Switch Freighter to the configured Stellar network");
+      setPublicKey(connection.publicKey);
+      setLastNotification("Freighter connected");
+    } catch (e) { setLastNotification(String(e)); }
+    finally { setIsSigning(false); }
+  }
+  function disconnectWallet() { setPublicKey(null); setAccount(emptyAccount); setInvoices([]); setQuotes({}); setTransactions([]); }
+  function requireAddress() { if (!publicKey) throw new Error("Connect Freighter first"); return publicKey; }
+  async function sign(xdr: string) {
+    const connection = await sdk.wallet.connect();
+    if (connection.publicKey !== publicKey || connection.networkPassphrase !== STELLAR_CONFIG.networkPassphrase) throw new Error("Wallet account or network changed; reconnect");
+    return sdk.wallet.signTransaction(xdr, requireAddress());
+  }
+  async function execute<T>(type: UIProtocolTransaction["type"], amount: number, call: () => Promise<TransactionResult<T>>, invoiceId?: number) {
+    setIsSigning(true);
+    try {
+      const actor = requireAddress();
+      const result = await call();
+      setTransactions(prev => [{ id: result.txHash, type, actor, amountUsdc: amount, invoiceId,
+        timestamp: new Date().toLocaleTimeString(), txHash: result.txHash, status: "FINALIZED" }, ...prev]);
+      setLastNotification(`Confirmed in ledger ${result.ledger}: ${result.txHash}`);
+      try { await load(actor); } catch (e) { setDataStatus(`Transaction confirmed; refresh failed: ${String(e)}`); }
+      return result;
+    } catch (e) { setLastNotification(String(e)); throw e; }
+    finally { setIsSigning(false); }
+  }
+  async function mintInvoice(input: MintInvoiceInput): Promise<UIInvoice> {
+    const merchant = requireAddress();
+    const result = await execute("MINT_INVOICE", input.amountUsdc, () => sdk.invoiceRegistry.createInvoice({
+      merchant, debtor: input.debtorAddress, faceValue: toUnits(input.amountUsdc), maturityTimestamp: input.maturityTimestamp,
+      riskTier: toSDKRiskTier(input.riskTier), metadataHash: input.metadataHash, invoiceNumber: input.invoiceRef }, sign));
+    return { id: Number(result.returnValue), invoiceRef: input.invoiceRef, merchantAddress: merchant, debtorName: input.debtorName,
+      debtorAddress: input.debtorAddress, amountUsdc: input.amountUsdc, maturityTimestamp: input.maturityTimestamp,
+      riskTier: input.riskTier, metadataHash: input.metadataHash, status: "Issued", txHash: result.txHash };
+  }
+  const factorInvoice = async (id: number) => { await execute("FACTOR_INVOICE", quotes[id]?.netPayoutUsdc ?? 0,
+    () => sdk.factoringEscrow.factorInvoice(requireAddress(), BigInt(id), sign), id); };
+  const settleInvoice = async (id: number) => { await execute("SETTLE_ESCROW", invoices.find(i => i.id === id)?.amountUsdc ?? 0,
+    () => sdk.factoringEscrow.settleInvoice(requireAddress(), BigInt(id), sign), id); };
+  const depositLiquidity = async (amount: number) => { await execute("LP_DEPOSIT", amount, () => sdk.liquidityPool.deposit(requireAddress(), toUnits(amount), sign)); };
+  const withdrawLiquidity = async (amount: number) => { await execute("LP_WITHDRAW", amount, () => sdk.liquidityPool.withdraw(requireAddress(), toUnits(amount), sign)); };
+  const depositJunior = async (amount: number) => { await execute("LP_DEPOSIT", amount, () => sdk.liquidityPool.depositJunior(requireAddress(), toUnits(amount), sign)); };
+  const withdrawJunior = async (amount: number) => { await execute("LP_WITHDRAW", amount, () => sdk.liquidityPool.withdrawJunior(requireAddress(), toUnits(amount), sign)); };
+  return <WalletContext.Provider value={{ isConnected: !!publicKey, publicKey, network: STELLAR_CONFIG.network,
+    ...account, invoices, transactions, poolMetrics, quotes, dataStatus, isSigning, lastNotification,
+    connectWallet, disconnectWallet, mintInvoice, factorInvoice, settleInvoice, depositLiquidity, withdrawLiquidity,
+    depositJunior, withdrawJunior, clearNotification: () => setLastNotification(null) }}>{children}</WalletContext.Provider>;
+}
+export function useWallet() {
+  const context = useContext(WalletContext);
+  if (!context) throw new Error("useWallet must be used within a WalletProvider");
+  return context;
 }

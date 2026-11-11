@@ -1,166 +1,65 @@
 import React from "react";
-import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import {
-  formatUSDC,
-  formatBps,
-  formatAddress,
-  generateInvoiceMetadataHash,
-} from "@/lib/utils";
-import {
-  calculateFactoringQuote,
-  INITIAL_INVOICES,
-  INITIAL_POOL_METRICS,
-  checkJuniorWithdrawal,
-  splitTrancheLoss,
-  splitTrancheYield,
-} from "@/lib/sdk";
-import { WalletProvider } from "@/context/WalletContext";
-import DashboardPage from "@/app/dashboard/page";
-import MerchantPage from "@/app/merchant/page";
-import InvestorPage from "@/app/investor/page";
-
-describe("LiquiVault Frontend Utility & Pricing Math", () => {
-  it("formats USDC amounts and stroops accurately", () => {
-    expect(formatUSDC(125000)).toBe("$125,000.00");
-    expect(formatUSDC(83666.85)).toBe("$83,666.85");
-    expect(formatUSDC(1000_0000000n, true)).toBe("$1,000.00");
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { webcrypto } from "node:crypto";
+Object.defineProperty(window, "crypto", { value: webcrypto, configurable: true });
+import { WalletProvider, useWallet } from "@/context/WalletContext";
+import { quoteForUI, toUnits, checkJuniorWithdrawal, splitTrancheYield } from "@/lib/sdk";
+import { RiskTier } from "@liquivault/sdk";
+import { formatUSDC, generateInvoiceMetadataHash } from "@/lib/utils";
+const fake = vi.hoisted(() => ({ installed: false, fail: false, confirmed: false }));
+vi.mock("@liquivault/sdk", async importOriginal => {
+  const actual = await importOriginal<typeof import("@liquivault/sdk")>();
+  return { ...actual, LiquiVaultSDK: class {
+    wallet = { isConnected: async () => fake.installed, connect: async () => ({ publicKey: "GREAL", networkPassphrase: "Test SDF Network ; September 2015" }) };
+    liquidityPool = {
+      getPoolState: async () => ({ totalAssets: 1000000000n, totalShares: 1000000000n, deployedCapital: 0n, reserveFactorBps: 1000, treasury: "GTREASURY" }),
+      getJuniorState: async () => ({ totalAssets: 0n, totalShares: 0n }),
+      getLPPosition: async () => ({ shares: 0n, depositedUsdc: 0n }), getJuniorPosition: async () => ({ shares: 0n, depositedUsdc: 0n }),
+      deposit: async () => { if (fake.fail) throw new Error("Wallet rejected"); fake.confirmed = true; return { txHash: "real-confirmed-hash", ledger: 123, status: "SUCCESS", returnValue: 10000000n }; }
+    };
+    invoiceRegistry = { getMerchantInvoices: async () => [] };
+    rpc = { simulateViewCall: async (_contract: string, method: string) => method === "get_protocol_metrics" ? [0n, 0n] : method === "get_junior_yield_bps" ? 3000 : 0n };
+  } };
+});
+function Probe() {
+  const wallet = useWallet();
+  return <><span>{wallet.isConnected ? "Connected" : "Disconnected"}</span><span>Invoices: {wallet.invoices.length}</span>
+    <span>{wallet.lastNotification}</span><span>{wallet.transactions.map(t => t.txHash).join(",")}</span>
+    <button onClick={wallet.connectWallet}>Connect</button>
+    <button onClick={() => void wallet.depositLiquidity(1).catch(() => {})}>Deposit</button></>;
+}
+afterEach(() => { cleanup(); fake.installed = false; fake.fail = false; fake.confirmed = false; });
+describe("real wallet state", () => {
+  it("starts disconnected without fabricated invoices and refuses a missing extension", async () => {
+    render(<WalletProvider><Probe /></WalletProvider>);
+    expect(screen.getByText("Disconnected")).toBeDefined(); expect(screen.getByText("Invoices: 0")).toBeDefined();
+    fireEvent.click(screen.getByText("Connect"));
+    await screen.findByText(/Install and unlock Freighter/);
+    expect(screen.getByText("Disconnected")).toBeDefined();
   });
-
-  it("formats basis points into percentages", () => {
-    expect(formatBps(600)).toBe("6.00%");
-    expect(formatBps(984)).toBe("9.84%");
-    expect(formatBps(145)).toBe("1.45%");
-  });
-
-  it("truncates Stellar public keys and contract addresses cleanly", () => {
-    const addr = "GB7LQV5MERCHANT8INSTITUTIONAL4SOROBAN9VAULT2WALLET7M94X2K";
-    expect(formatAddress(addr, 6)).toBe("GB7LQV...M94X2K");
-  });
-
-  it("calculates time-weighted factoring discount quotes matching Soroban pool math", () => {
-    const nowSec = Math.floor(Date.now() / 1000);
-    const maturity45d = nowSec + 45 * 86400;
-    const quote = calculateFactoringQuote(100000, maturity45d, "Tier A");
-
-    expect(quote.faceValueUsdc).toBe(100000);
-    expect(quote.annualizedRateBps).toBe(600);
-    expect(quote.effectiveDiscountBps).toBeGreaterThanOrEqual(70);
-    expect(quote.netPayoutUsdc).toBe(
-      Number((quote.faceValueUsdc - quote.totalDiscountUsdc).toFixed(2))
-    );
-    expect(
-      Number((quote.protocolFeeUsdc + quote.lpYieldUsdc).toFixed(2))
-    ).toBe(quote.totalDiscountUsdc);
-  });
-
-  it("generates a 64-character hex SHA-256 metadata commitment", async () => {
-    const hash = await generateInvoiceMetadataHash("INV-2025-8904|Siemens|125000");
-    expect(hash).toHaveLength(64);
-    expect(/^[0-9a-f]{64}$/.test(hash)).toBe(true);
+  it("records confirmed writes, but leaves rejected writes out of activity", async () => {
+    fake.installed = true;
+    render(<WalletProvider><Probe /></WalletProvider>);
+    fireEvent.click(screen.getByText("Connect")); await screen.findByText("Connected");
+    fake.fail = true; fireEvent.click(screen.getByText("Deposit")); await screen.findByText(/Wallet rejected/);
+    expect(screen.queryByText("real-confirmed-hash")).toBeNull();
+    fake.fail = false; fireEvent.click(screen.getByText("Deposit"));
+    await waitFor(() => expect(fake.confirmed).toBe(true));
+    await screen.findByText("real-confirmed-hash");
   });
 });
-
-describe("LiquiVault Institutional Views Rendering", () => {
-  it("renders Protocol Analytics Dashboard with TVL, APY, and ledger transactions", () => {
-    render(
-      <WalletProvider>
-        <DashboardPage />
-      </WalletProvider>
-    );
-
-    expect(
-      screen.getByText(/Protocol Analytics & Risk Telemetry/i)
-    ).toBeDefined();
-    expect(
-      screen.getByText(formatUSDC(INITIAL_POOL_METRICS.totalLiquidityUsdc))
-    ).toBeDefined();
-    expect(
-      screen.getByText(formatBps(INITIAL_POOL_METRICS.currentApyBps))
-    ).toBeDefined();
-  });
-
-  it("renders Merchant Factoring view with invoice tokenization form and factoring quote modal", () => {
-    render(
-      <WalletProvider>
-        <MerchantPage />
-      </WalletProvider>
-    );
-
-    expect(
-      screen.getByText(/Merchant Receivable Tokenization & Factoring/i)
-    ).toBeDefined();
-    expect(
-      screen.getByText(INITIAL_INVOICES[0].debtorName)
-    ).toBeDefined();
-
-    // Open Factoring Quote Modal for first verified invoice
-    const factorButtons = screen.getAllByRole("button", {
-      name: /Factor for/i,
-    });
-    expect(factorButtons.length).toBeGreaterThan(0);
-    fireEvent.click(factorButtons[0]);
-
-    expect(
-      screen.getByText(/Atomic USDC Factoring Quote/i)
-    ).toBeDefined();
-  });
-
-  it("renders Investor Liquidity Vault with lvUSDC share index and deposit/withdraw tabs", () => {
-    render(
-      <WalletProvider>
-        <InvestorPage />
-      </WalletProvider>
-    );
-
-    expect(
-      screen.getByText(/Institutional USDC Liquidity Vault/i)
-    ).toBeDefined();
-    expect(screen.getByText(/125,000 lvUSDC/i)).toBeDefined();
-  });
+it("displays the contract quote including its origination fee and effective 214 bps", () => {
+  const q = quoteForUI({ invoiceId: 1n, faceValue: 100000000000n, riskTier: RiskTier.TierB, durationSeconds: 5183953,
+    timeDiscountAmount: 1643820712n, originationFeeAmount: 500000000n, totalDiscount: 2143820712n, netPayout: 97856179288n, effectiveDiscountBps: 214 }, 1000);
+  expect(q.effectiveDiscountBps).toBe(214); expect(q.netPayoutUsdc).toBe(9785.6179288);
 });
-
-describe("Junior first-loss tranche", () => {
-  it("splits LP yield to junior only while it holds capital", () => {
-    expect(splitTrancheYield(1800, 20000, 3000)).toEqual({
-      juniorYieldUsdc: 540,
-      seniorYieldUsdc: 1260,
-    });
-    expect(splitTrancheYield(900, 0, 3000)).toEqual({
-      juniorYieldUsdc: 0,
-      seniorYieldUsdc: 900,
-    });
-  });
-
-  it("applies losses to junior before senior", () => {
-    expect(splitTrancheLoss(15000, 20000)).toEqual({
-      juniorLossUsdc: 15000,
-      seniorLossUsdc: 0,
-    });
-    expect(splitTrancheLoss(25000, 20000)).toEqual({
-      juniorLossUsdc: 20000,
-      seniorLossUsdc: 5000,
-    });
-  });
-
-  it("blocks junior withdrawals that break the 10% coverage rule", () => {
-    // Deployed 50k -> junior must keep >= 5k.
-    expect(checkJuniorWithdrawal(10000, 20000, 50000, 50000).allowed).toBe(true);
-    const all = checkJuniorWithdrawal(20000, 20000, 50000, 50000);
-    expect(all.allowed).toBe(false);
-    expect(all.reason).toMatch(/10%/);
-    expect(checkJuniorWithdrawal(30000, 20000, 0, 50000).allowed).toBe(false);
-    expect(checkJuniorWithdrawal(5000, 20000, 0, 1000).allowed).toBe(false);
-  });
-
-  it("renders the junior tranche card on the investor page", () => {
-    render(
-      <WalletProvider>
-        <InvestorPage />
-      </WalletProvider>
-    );
-    expect(screen.getByTestId("junior-tranche-card")).toBeDefined();
-    expect(screen.getByText(/Junior First-Loss Tranche/i)).toBeDefined();
-    expect(screen.getByTestId("junior-withdraw-status")).toBeDefined();
-  });
+it("converts positive token units and rejects invalid input", () => {
+  expect(toUnits(1.25)).toBe(12500000n); expect(() => toUnits(NaN)).toThrow(); expect(() => toUnits(-1)).toThrow();
+  expect(formatUSDC(10000000n, true)).toBe("$1.00");
 });
+it("caps junior yield by capital and enforces first-loss coverage", () => {
+  expect(splitTrancheYield(1800, 20000, 3000, 60000)).toEqual({ juniorYieldUsdc: 450, seniorYieldUsdc: 1350 });
+  expect(checkJuniorWithdrawal(20000, 20000, 50000, 50000).allowed).toBe(false);
+});
+it("hashes invoice metadata", async () => { expect(await generateInvoiceMetadataHash("invoice")).toMatch(/^[a-f0-9]{64}$/); });

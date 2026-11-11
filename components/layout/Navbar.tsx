@@ -23,14 +23,13 @@ export function Navbar() {
   const {
     isConnected,
     publicKey,
-    isSep10Verified,
     usdcBalance,
     connectWallet,
     disconnectWallet,
-    sep10Authenticate,
     isSigning,
     lastNotification,
     clearNotification,
+    dataStatus,
   } = useWallet();
 
   const navItems = [
@@ -86,18 +85,6 @@ export function Navbar() {
             Stellar Soroban Testnet
           </Badge>
 
-          {isConnected && (
-            <button
-              type="button"
-              onClick={sep10Authenticate}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition"
-              title="SEP-10 Institutional KYB Session"
-            >
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-              {isSep10Verified ? "SEP-10 KYB Verified" : "Verify SEP-10"}
-            </button>
-          )}
-
           {isConnected && publicKey ? (
             <div className="flex items-center space-x-2">
               <div className="hidden xl:flex flex-col items-end px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs">
@@ -138,6 +125,7 @@ export function Navbar() {
         </div>
       </div>
 
+      <div role="status" className="px-4 py-2 text-xs text-slate-400">Testnet token ? {dataStatus}</div>
       {/* Mobile Navigation Bar */}
       <div className="flex md:hidden border-t border-slate-800/80 bg-slate-950 px-4 py-2 justify-around">
         {navItems.map((item) => {

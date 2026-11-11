@@ -54,12 +54,12 @@ export default function JuniorTrancheCard() {
           <ShieldAlert className="h-5 w-5 text-amber-400" />
           Junior First-Loss Tranche
           <Badge variant="info" className="ml-2">
-            {formatBps(poolMetrics.juniorYieldBps)} of LP yield
+            {poolMetrics.juniorYieldBps === null ? "Yield cap unavailable on legacy deployment" : `${formatBps(poolMetrics.juniorYieldBps)} of LP yield (capital capped)`}
           </Badge>
         </CardTitle>
         <CardDescription>
           Junior capital absorbs invoice defaults before senior lvUSDC holders and earns a
-          larger share of yield in return. You can lose your deposit.
+          configured allocation of yield, capped by its share of pool capital. You can lose your deposit.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
