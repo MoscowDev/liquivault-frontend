@@ -9,3 +9,6 @@ dist/
 tsconfig.tsbuildinfo
 
 .stellar/
+out/
+playwright-report/
+test-results/

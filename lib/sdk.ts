@@ -80,6 +80,7 @@ export interface UIProtocolTransaction {
   id: string;
   type:
     | "MINT_INVOICE"
+    | "VERIFY_INVOICE"
     | "FACTOR_INVOICE"
     | "SETTLE_ESCROW"
     | "LP_DEPOSIT"

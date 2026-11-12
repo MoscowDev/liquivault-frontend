@@ -35,23 +35,28 @@ export default function HomePage() {
         <div className="max-w-3xl space-y-6">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">Stellar Soroban RWA Protocol</Badge>
-            <Badge variant="info">Freighter ? Soroban Testnet</Badge>
+            <Badge variant="info">Freighter / Soroban Testnet</Badge>
             <Badge variant="secondary">SEP-41 Test Token</Badge>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-            Institutional B2B Invoice Factoring &{" "}
+            Experimental Invoice Factoring &{" "}
             <span className="text-emerald-400">Atomic Liquidity</span>
           </h1>
 
           <p className="text-base sm:text-lg text-slate-300 leading-relaxed">
-            LiquiVault transforms verified net-30 to net-90 corporate trade
-            receivables into on-chain Soroban assets, unlocking sub-5-second
-            discounted USDC liquidity for global suppliers while delivering
-            real-world yield to institutional liquidity providers.
+            Explore invoice commitments, verifier approval and pool-funded
+            advances on Stellar Soroban. This testnet prototype uses LVTEST, a
+            custom demonstration token. It does not establish legal title,
+            perform commercial verification or guarantee repayment or returns.
           </p>
 
           <div className="flex flex-wrap gap-4 pt-2">
+            <Link href="/setup">
+              <Button variant="outline" size="lg">
+                Start with testnet setup
+              </Button>
+            </Link>
             <Link href="/merchant">
               <Button size="lg" className="gap-2">
                 <FileText className="h-4 w-4" />

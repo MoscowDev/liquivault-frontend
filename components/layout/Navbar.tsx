@@ -33,6 +33,8 @@ export function Navbar() {
   } = useWallet();
 
   const navItems = [
+    { href: "/setup", label: "Testnet setup", icon: ShieldCheck },
+    { href: "/verifier", label: "Verifier", icon: ShieldCheck },
     { href: "/dashboard", label: "Protocol Analytics", icon: BarChart3 },
     { href: "/merchant", label: "Merchant Factoring", icon: FileText },
     { href: "/investor", label: "Liquidity Vault (LP)", icon: Landmark },

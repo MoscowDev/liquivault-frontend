@@ -139,7 +139,9 @@ export default function MerchantPage() {
         </CardHeader>
         <CardContent>
           <form
-            onSubmit={handleMintSubmit}
+            onSubmit={(event) => {
+              void handleMintSubmit(event).catch(() => {});
+            }}
             className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           >
             <div className="space-y-1.5">
@@ -384,7 +386,9 @@ export default function MerchantPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => settleInvoice(inv.id)}
+                          onClick={() => {
+                            void settleInvoice(inv.id).catch(() => {});
+                          }}
                           disabled={isSigning}
                           className="gap-1.5 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
                         >
@@ -476,7 +480,9 @@ export default function MerchantPage() {
                 Cancel
               </Button>
               <Button
-                onClick={handleConfirmFactor}
+                onClick={() => {
+                  void handleConfirmFactor().catch(() => {});
+                }}
                 disabled={isSigning}
                 className="gap-2"
               >

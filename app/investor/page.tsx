@@ -25,6 +25,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import JuniorTrancheCard from "@/components/investor/JuniorTrancheCard";
+import {
+  RedemptionStatus,
+  useRedemption,
+} from "@/components/investor/RedemptionStatus";
 
 export default function InvestorPage() {
   const {
@@ -48,6 +52,7 @@ export default function InvestorPage() {
       : 0;
 
   const parsedWithdraw = parseFloat(withdrawShares) || 0;
+  const redemption = useRedemption(parsedWithdraw, false);
   const previewRedeemedUsdc = Number(
     (parsedWithdraw * poolMetrics.sharePriceUsdc).toFixed(2),
   );
@@ -71,7 +76,7 @@ export default function InvestorPage() {
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (parsedWithdraw <= 0) return;
+    if (!redemption.allowed) return;
     await withdrawLiquidity(parsedWithdraw);
   };
 
@@ -82,17 +87,17 @@ export default function InvestorPage() {
   return (
     <div className="space-y-8">
       <p className="text-sm text-amber-300">
-        Testnet token. Each deposit locks that tranche?s withdrawals for 24
+        Testnet token. Each deposit locks that tranche&apos;s withdrawals for 24
         hours. Junior yield is capped by its capital share.
       </p>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            Institutional USDC Liquidity Vault (LP)
+            Testnet Liquidity Vault
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Supply SEP-41 USDC to fund short-duration B2B invoice advances and
-            earn real-world factoring yield via lvUSDC shares.
+            Supply LVTEST to exercise invoice advances and tranche accounting.
+            This demonstration token has no promised monetary value or returns.
           </p>
         </div>
         <Badge variant="info" className="self-start sm:self-auto py-1 px-3">
@@ -199,7 +204,12 @@ export default function InvestorPage() {
               </TabsList>
 
               <TabsContent value="deposit" className="space-y-4 pt-2">
-                <form onSubmit={handleDeposit} className="space-y-4">
+                <form
+                  onSubmit={(event) => {
+                    void handleDeposit(event).catch(() => {});
+                  }}
+                  className="space-y-4"
+                >
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
                       <label
@@ -266,7 +276,13 @@ export default function InvestorPage() {
               </TabsContent>
 
               <TabsContent value="withdraw" className="space-y-4 pt-2">
-                <form onSubmit={handleWithdraw} className="space-y-4">
+                <RedemptionStatus check={redemption} />
+                <form
+                  onSubmit={(event) => {
+                    void handleWithdraw(event).catch(() => {});
+                  }}
+                  className="space-y-4"
+                >
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
                       <label
@@ -316,7 +332,7 @@ export default function InvestorPage() {
                   <Button
                     type="submit"
                     variant="outline"
-                    disabled={isSigning}
+                    disabled={isSigning || !redemption.allowed}
                     className="w-full gap-2 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/15"
                   >
                     <ArrowUpRight className="h-4 w-4" />

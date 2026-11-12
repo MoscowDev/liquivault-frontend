@@ -5,6 +5,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import type { TransactionResult } from "@liquivault/sdk";
 import {
@@ -43,6 +44,18 @@ export interface WalletContextType {
   juniorDepositedUsdc: number;
   depositedUsdc: number;
   earnedYieldUsdc: number;
+  seniorLastDepositTimestamp: number;
+  juniorLastDepositTimestamp: number;
+  redemptionSnapshot: {
+    seniorAssets: bigint;
+    seniorShares: bigint;
+    juniorAssets: bigint;
+    juniorShares: bigint;
+    deployed: bigint;
+    seniorPosition: bigint;
+    juniorPosition: bigint;
+    paused: boolean;
+  } | null;
   invoices: UIInvoice[];
   transactions: UIProtocolTransaction[];
   poolMetrics: UIPoolMetrics;
@@ -55,6 +68,7 @@ export interface WalletContextType {
   mintInvoice: (input: MintInvoiceInput) => Promise<UIInvoice>;
   factorInvoice: (invoiceId: number) => Promise<void>;
   settleInvoice: (invoiceId: number) => Promise<void>;
+  verifyInvoice: (invoiceId: bigint, tier: RiskTier) => Promise<void>;
   depositLiquidity: (amountUsdc: number) => Promise<void>;
   withdrawLiquidity: (sharesAmount: number) => Promise<void>;
   depositJunior: (amountUsdc: number) => Promise<void>;
@@ -64,13 +78,27 @@ export interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 const sdk = createSDK();
-const emptyAccount = {
+const emptyAccount: Pick<
+  WalletContextType,
+  | "usdcBalance"
+  | "lpSharesBalance"
+  | "juniorSharesBalance"
+  | "juniorDepositedUsdc"
+  | "depositedUsdc"
+  | "earnedYieldUsdc"
+  | "seniorLastDepositTimestamp"
+  | "juniorLastDepositTimestamp"
+  | "redemptionSnapshot"
+> = {
   usdcBalance: 0,
   lpSharesBalance: 0,
   juniorSharesBalance: 0,
   juniorDepositedUsdc: 0,
   depositedUsdc: 0,
   earnedYieldUsdc: 0,
+  seniorLastDepositTimestamp: 0,
+  juniorLastDepositTimestamp: 0,
+  redemptionSnapshot: null,
 };
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -83,9 +111,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [isSigning, setIsSigning] = useState(false);
   const [lastNotification, setLastNotification] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState("Loading contract state...");
+  const session = useRef(0);
+  const refreshGeneration = useRef(0);
+  const addressRef = useRef<string | null>(null);
+  const busy = useRef(false);
 
   const load = useCallback(
     async (address: string | null, active: () => boolean = () => true) => {
+      const generation = ++refreshGeneration.current;
+      const currentSession = session.current;
+      const isCurrent = () =>
+        active() &&
+        currentSession === session.current &&
+        generation === refreshGeneration.current;
       const [pool, junior, metrics, yieldBps, treasury] = await Promise.all([
         sdk.liquidityPool.getPoolState(),
         sdk.liquidityPool.getJuniorState(),
@@ -111,7 +149,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             ),
           ),
       ]);
-      if (!active()) return;
+      if (!isCurrent()) return;
       setPoolMetrics({
         ...INITIAL_POOL_METRICS,
         totalLiquidityUsdc: fromUnits(pool.totalAssets + junior.totalAssets),
@@ -172,7 +210,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               );
             }),
         );
-        if (!active()) return;
+        if (!isCurrent()) return;
         setQuotes(nextQuotes);
         setInvoices(
           records.map((r) => ({
@@ -199,9 +237,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           juniorDepositedUsdc: fromUnits(juniorPos.depositedUsdc),
           depositedUsdc: fromUnits(seniorPos.depositedUsdc),
           earnedYieldUsdc: fromUnits(value - seniorPos.depositedUsdc),
+          seniorLastDepositTimestamp: seniorPos.lastDepositTimestamp,
+          juniorLastDepositTimestamp: juniorPos.lastDepositTimestamp,
+          redemptionSnapshot: {
+            seniorAssets: pool.totalAssets,
+            seniorShares: pool.totalShares,
+            juniorAssets: junior.totalAssets,
+            juniorShares: junior.totalShares,
+            deployed: pool.deployedCapital,
+            seniorPosition: seniorPos.shares,
+            juniorPosition: juniorPos.shares,
+            paused: pool.paused,
+          },
         });
       }
-      if (active())
+      if (isCurrent())
         setDataStatus(
           `Contract snapshot: ${new Date().toLocaleTimeString()}. APY/default-rate history unavailable. Activity shows this session only.`,
         );
@@ -212,10 +262,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     async function refresh() {
+      const generation = refreshGeneration.current + 1;
+      const currentSession = session.current;
       try {
         await load(publicKey, () => active);
       } catch (e) {
-        if (active) setDataStatus(`Contract data unavailable: ${String(e)}`);
+        if (
+          active &&
+          currentSession === session.current &&
+          generation === refreshGeneration.current
+        )
+          setDataStatus(`Contract data unavailable: ${String(e)}`);
       }
     }
     void refresh();
@@ -227,6 +284,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [publicKey, load]);
 
   async function connectWallet() {
+    if (busy.current) return;
+    const currentSession = ++session.current;
+    busy.current = true;
     setIsSigning(true);
     try {
       if (!(await sdk.wallet.isConnected()))
@@ -234,15 +294,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const connection = await sdk.wallet.connect();
       if (connection.networkPassphrase !== STELLAR_CONFIG.networkPassphrase)
         throw new Error("Switch Freighter to the configured Stellar network");
+      if (currentSession !== session.current) return;
+      addressRef.current = connection.publicKey;
+      setAccount(emptyAccount);
+      setInvoices([]);
+      setQuotes({});
+      setTransactions([]);
       setPublicKey(connection.publicKey);
       setLastNotification("Freighter connected");
     } catch (e) {
-      setLastNotification(String(e));
+      if (currentSession === session.current) setLastNotification(String(e));
     } finally {
-      setIsSigning(false);
+      busy.current = false;
+      if (currentSession === session.current) setIsSigning(false);
     }
   }
   function disconnectWallet() {
+    session.current++;
+    refreshGeneration.current++;
+    addressRef.current = null;
+    setLastNotification(null);
+    setIsSigning(false);
     setPublicKey(null);
     setAccount(emptyAccount);
     setInvoices([]);
@@ -250,17 +322,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setTransactions([]);
   }
   function requireAddress() {
-    if (!publicKey) throw new Error("Connect Freighter first");
-    return publicKey;
+    if (!addressRef.current || addressRef.current !== publicKey)
+      throw new Error("Connect Freighter first");
+    return addressRef.current;
   }
   async function sign(xdr: string) {
+    const currentSession = session.current;
+    const actor = requireAddress();
     const connection = await sdk.wallet.connect();
     if (
-      connection.publicKey !== publicKey ||
+      currentSession !== session.current ||
+      connection.publicKey !== actor ||
       connection.networkPassphrase !== STELLAR_CONFIG.networkPassphrase
     )
       throw new Error("Wallet account or network changed; reconnect");
-    return sdk.wallet.signTransaction(xdr, requireAddress());
+    const signed = await sdk.wallet.signTransaction(xdr, actor);
+    if (currentSession !== session.current || addressRef.current !== actor)
+      throw new Error(
+        "Wallet session changed during signing; transaction was not submitted",
+      );
+    return signed;
   }
   async function execute<T>(
     type: UIProtocolTransaction["type"],
@@ -268,10 +349,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     call: () => Promise<TransactionResult<T>>,
     invoiceId?: number,
   ) {
+    if (busy.current) throw new Error("Wait for the current wallet operation");
+    const currentSession = session.current;
+    busy.current = true;
     setIsSigning(true);
     try {
       const actor = requireAddress();
       const result = await call();
+      if (currentSession !== session.current || actor !== addressRef.current)
+        return result;
       setTransactions((prev) => [
         {
           id: result.txHash,
@@ -289,16 +375,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         `Confirmed in ledger ${result.ledger}: ${result.txHash}`,
       );
       try {
-        await load(actor);
+        await load(actor, () => currentSession === session.current);
       } catch (e) {
-        setDataStatus(`Transaction confirmed; refresh failed: ${String(e)}`);
+        if (currentSession === session.current)
+          setDataStatus(`Transaction confirmed; refresh failed: ${String(e)}`);
       }
       return result;
     } catch (e) {
-      setLastNotification(String(e));
+      if (currentSession === session.current) setLastNotification(String(e));
       throw e;
     } finally {
-      setIsSigning(false);
+      busy.current = false;
+      if (currentSession === session.current) setIsSigning(false);
     }
   }
   async function mintInvoice(input: MintInvoiceInput): Promise<UIInvoice> {
@@ -349,6 +437,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       id,
     );
   };
+  const verifyInvoice = async (id: bigint, tier: RiskTier) => {
+    await execute("VERIFY_INVOICE", 0, () =>
+      sdk.invoiceRegistry.verifyInvoice(
+        requireAddress(),
+        id,
+        toSDKRiskTier(tier),
+        sign,
+      ),
+    );
+  };
   const depositLiquidity = async (amount: number) => {
     await execute("LP_DEPOSIT", amount, () =>
       sdk.liquidityPool.deposit(requireAddress(), toUnits(amount), sign),
@@ -388,6 +486,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         mintInvoice,
         factorInvoice,
         settleInvoice,
+        verifyInvoice,
         depositLiquidity,
         withdrawLiquidity,
         depositJunior,

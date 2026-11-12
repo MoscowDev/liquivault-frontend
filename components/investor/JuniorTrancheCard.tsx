@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
-import { checkJuniorWithdrawal, JUNIOR_MIN_COVERAGE_BPS } from "@/lib/sdk";
+import { JUNIOR_MIN_COVERAGE_BPS } from "@/lib/sdk";
+import { RedemptionStatus, useRedemption } from "./RedemptionStatus";
 import { formatBps, formatUSDC } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,12 +39,7 @@ export default function JuniorTrancheCard() {
   const previewRedeemedUsdc = Number(
     (parsedWithdraw * poolMetrics.juniorSharePriceUsdc).toFixed(2),
   );
-  const withdrawCheck = checkJuniorWithdrawal(
-    previewRedeemedUsdc,
-    poolMetrics.juniorLiquidityUsdc,
-    poolMetrics.utilizedLiquidityUsdc,
-    poolMetrics.availableLiquidityUsdc,
-  );
+  const withdrawCheck = useRedemption(parsedWithdraw, true);
   const requiredCoverageUsdc =
     (poolMetrics.utilizedLiquidityUsdc * JUNIOR_MIN_COVERAGE_BPS) / 10000;
 
@@ -96,7 +92,8 @@ export default function JuniorTrancheCard() {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              if (parsedDeposit > 0) await depositJunior(parsedDeposit);
+              if (parsedDeposit > 0)
+                await depositJunior(parsedDeposit).catch(() => {});
             }}
             className="space-y-3"
           >
@@ -125,7 +122,8 @@ export default function JuniorTrancheCard() {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              if (parsedWithdraw > 0) await withdrawJunior(parsedWithdraw);
+              if (withdrawCheck.allowed)
+                await withdrawJunior(parsedWithdraw).catch(() => {});
             }}
             className="space-y-3"
           >
@@ -144,6 +142,7 @@ export default function JuniorTrancheCard() {
               onChange={(e) => setWithdrawShares(e.target.value)}
               required
             />
+            <RedemptionStatus check={withdrawCheck} />
             <p
               className={`text-xs ${
                 withdrawCheck.allowed ? "text-emerald-400" : "text-amber-400"

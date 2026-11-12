@@ -25,6 +25,10 @@ const fake = vi.hoisted(() => ({
   installed: false,
   fail: false,
   confirmed: false,
+  address: "GREAL",
+  passphrase: "Test SDF Network ; September 2015",
+  balance: null as null | ((address: string) => Promise<bigint>),
+  write: null as null | (() => Promise<void>),
 }));
 vi.mock("@liquivault/sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@liquivault/sdk")>();
@@ -34,8 +38,8 @@ vi.mock("@liquivault/sdk", async (importOriginal) => {
       wallet = {
         isConnected: async () => fake.installed,
         connect: async () => ({
-          publicKey: "GREAL",
-          networkPassphrase: "Test SDF Network ; September 2015",
+          publicKey: fake.address,
+          networkPassphrase: fake.passphrase,
         }),
       };
       liquidityPool = {
@@ -50,6 +54,7 @@ vi.mock("@liquivault/sdk", async (importOriginal) => {
         getLPPosition: async () => ({ shares: 0n, depositedUsdc: 0n }),
         getJuniorPosition: async () => ({ shares: 0n, depositedUsdc: 0n }),
         deposit: async () => {
+          if (fake.write) await fake.write();
           if (fake.fail) throw new Error("Wallet rejected");
           fake.confirmed = true;
           return {
@@ -62,12 +67,18 @@ vi.mock("@liquivault/sdk", async (importOriginal) => {
       };
       invoiceRegistry = { getMerchantInvoices: async () => [] };
       rpc = {
-        simulateViewCall: async (_contract: string, method: string) =>
+        simulateViewCall: async (
+          _contract: string,
+          method: string,
+          args: string[],
+        ) =>
           method === "get_protocol_metrics"
             ? [0n, 0n]
             : method === "get_junior_yield_bps"
               ? 3000
-              : 0n,
+              : fake.balance && method === "balance"
+                ? fake.balance(args[0])
+                : 0n,
       };
     },
   };
@@ -78,9 +89,11 @@ function Probe() {
     <>
       <span>{wallet.isConnected ? "Connected" : "Disconnected"}</span>
       <span>Invoices: {wallet.invoices.length}</span>
+      <span>Balance: {wallet.usdcBalance}</span>
       <span>{wallet.lastNotification}</span>
       <span>{wallet.transactions.map((t) => t.txHash).join(",")}</span>
       <button onClick={wallet.connectWallet}>Connect</button>
+      <button onClick={wallet.disconnectWallet}>Disconnect</button>
       <button onClick={() => void wallet.depositLiquidity(1).catch(() => {})}>
         Deposit
       </button>
@@ -92,8 +105,72 @@ afterEach(() => {
   fake.installed = false;
   fake.fail = false;
   fake.confirmed = false;
+  fake.address = "GREAL";
+  fake.passphrase = "Test SDF Network ; September 2015";
+  fake.balance = null;
+  fake.write = null;
 });
 describe("real wallet state", () => {
+  it("refuses the wrong network", async () => {
+    fake.installed = true;
+    fake.passphrase = "Public Global Stellar Network ; September 2015";
+    render(
+      <WalletProvider>
+        <Probe />
+      </WalletProvider>,
+    );
+    fireEvent.click(screen.getByText("Connect"));
+    await screen.findByText(/Switch Freighter/);
+    expect(screen.getByText("Disconnected")).toBeDefined();
+  });
+  it("ignores a delayed account read after disconnect", async () => {
+    fake.installed = true;
+    let release!: (value: bigint) => void;
+    let requested = false;
+    fake.balance = async (address) =>
+      address === "GREAL"
+        ? new Promise<bigint>((resolve) => {
+            release = resolve;
+            requested = true;
+          })
+        : 0n;
+    render(
+      <WalletProvider>
+        <Probe />
+      </WalletProvider>,
+    );
+    fireEvent.click(screen.getByText("Connect"));
+    await waitFor(() => expect(requested).toBe(true));
+    fireEvent.click(screen.getByText("Disconnect"));
+    release(990000000n);
+    await waitFor(() => expect(screen.getByText("Balance: 0")).toBeDefined());
+    expect(screen.getByText("Disconnected")).toBeDefined();
+  });
+  it("does not attach a completed old-session write to a new session", async () => {
+    fake.installed = true;
+    let release!: () => void;
+    let requested = false;
+    fake.write = () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+        requested = true;
+      });
+    render(
+      <WalletProvider>
+        <Probe />
+      </WalletProvider>,
+    );
+    fireEvent.click(screen.getByText("Connect"));
+    await screen.findByText("Connected");
+    fireEvent.click(screen.getByText("Deposit"));
+    await waitFor(() => expect(requested).toBe(true));
+    fireEvent.click(screen.getByText("Disconnect"));
+    release();
+    await waitFor(() => expect(fake.confirmed).toBe(true));
+    expect(screen.queryByText("real-confirmed-hash")).toBeNull();
+    expect(screen.queryByText(/Confirmed in ledger/)).toBeNull();
+    expect(screen.getByText("Disconnected")).toBeDefined();
+  });
   it("starts disconnected without fabricated invoices and refuses a missing extension", async () => {
     render(
       <WalletProvider>

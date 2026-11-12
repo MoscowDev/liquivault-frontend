@@ -7,6 +7,14 @@ Next.js/React interface for the LiquiVault Stellar testnet prototype. Merchant f
 
 ## Run from clean checkouts
 
+The `/setup` page explains test XLM, operator-issued LVTEST and the lack of a public token faucet. `/verifier` lets the configured verifier/admin inspect and approve an invoice through Freighter. Role authorization is enforced by the registry, not granted by visiting the page. Redemption status uses integer snapshot arithmetic and actual last-deposit timestamps; execution remains authoritative.
+
+### Browser verification
+
+After installing dependencies, run `npx playwright install chromium` then `npm run test:browser`. CI installs Chromium with system dependencies. Eight scenarios use test-only Freighter message/RPC fixtures: missing wallet, wrong network, connect/disconnect with unavailable RPC, rejected signing, confirmed submission, changed account, changed network and uncertain submission. Fixtures use the production adapter and real Stellar XDR without a production fake-wallet switch. No real network write or extension signing is claimed. `npm test` separately covers component behavior, delayed sessions and redemption boundaries.
+
+`npm run build` produces the static `out/` directory. Host the exported HTML/assets, including direct routes; `next start` is not a static-export server. Never configure private keys in public build variables.
+
 Node.js 22.13+ and npm are required. The SDK must be cloned alongside this repository:
 
 ```sh

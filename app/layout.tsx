@@ -4,7 +4,7 @@ import { WalletProvider } from "@/context/WalletContext";
 import { Navbar } from "@/components/layout/Navbar";
 
 export const metadata: Metadata = {
-  title: "LiquiVault | Institutional B2B Invoice Factoring on Stellar Soroban",
+  title: "LiquiVault | Testnet Invoice Factoring on Stellar Soroban",
   description:
     "Decentralized Real-World Asset (RWA) trade receivables factoring, algorithmic discount pricing, and atomic escrow settlement on Stellar Soroban.",
 };
